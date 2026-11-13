@@ -1,11 +1,15 @@
 [project]
 name = "certscope"
-version = "0.1.0"
+version = "1.2.0"
 description = "Offline X.509 certificate inspector and trust-chain verifier"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
 authors = [{name = "CertScope contributors"}]
+
+[project.urls]
+Homepage = "https://github.com/erathaowl/CertScope"
+Repository = "https://github.com/erathaowl/CertScope"
 dependencies = [
     "cryptography>=45,<48",
     "pyOpenSSL>=25.1,<27",

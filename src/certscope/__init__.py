@@ -1,3 +1,8 @@
 """CertScope: inspect and verify X.509 certificates offline."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("certscope")
+except PackageNotFoundError:
+    __version__ = "1.2.0"

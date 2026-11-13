@@ -50,6 +50,8 @@ jobs:
       - run: uv run --no-project scripts/vendor-font.py
       - run: .\scripts\build-windows.ps1
         shell: pwsh
+        env:
+          CERTSCOPE_VERSION: ${{ inputs.source_ref }}
       - uses: actions/upload-artifact@v4
         with:
           name: CertScope-Windows

@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+from PyInstaller.utils.hooks import copy_metadata
 
 
 block_cipher = None
 assets = [(str(Path('assets/certscope.png').resolve()), 'assets')]
 assets += [(str(file), 'certscope/assets') for file in Path('src/certscope/assets').glob('*') if file.is_file()]
+assets += copy_metadata('certscope')
 a = Analysis(
     ['launcher.py'],
     pathex=['src'],
@@ -33,6 +35,7 @@ def build_executable(name, console):
         upx=False,
         console=console,
         icon='assets/certscope.ico',
+        version=str(Path('build') / f'{name}-version.txt'),
     )
 
 

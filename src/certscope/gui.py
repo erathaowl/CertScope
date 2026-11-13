@@ -3,15 +3,16 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, Signal, QTimer
-from PySide6.QtGui import QBrush, QColor, QIcon
+from PySide6.QtCore import QThread, Qt, Signal, QTimer, QSize
+from PySide6.QtGui import QBrush, QColor, QIcon, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QDialogButtonBox,
 )
 
+from certscope.app_info import APP_AUTHOR, APP_LICENSE, APP_NAME, APP_URL, __version__
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input
@@ -21,6 +22,50 @@ from certscope.parser import leaf_candidates, parse_bundle
 from certscope.reporting import render
 from certscope.storage import Storage
 from certscope.verification import verify_bundle
+
+
+def application_icon() -> QIcon:
+    """Load the bundled application icon in the source tree and frozen EXEs."""
+    from importlib.resources import as_file, files
+
+    resource = files("certscope").joinpath("assets", "certscope.png")
+    if resource.is_file():
+        with as_file(resource) as path:
+            return QIcon(str(path))
+    return QIcon()
+
+
+class AboutDialog(QDialog):
+    """Display the application identity and repository link."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"About {APP_NAME}")
+        self.setFixedWidth(360)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 24, 28, 20)
+        layout.setSpacing(12)
+
+        image = QLabel()
+        image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image.setPixmap(application_icon().pixmap(QSize(96, 96)))
+        layout.addWidget(image)
+
+        self.identity = QLabel(f"{APP_NAME} - {__version__} ({APP_LICENSE})")
+        self.identity.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_font = QFont(self.identity.font())
+        title_font.setBold(True)
+        self.identity.setFont(title_font)
+        layout.addWidget(self.identity)
+
+        self.repository = QLabel(f'<a href="{APP_URL}">{APP_URL}</a>')
+        self.repository.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.repository.setOpenExternalLinks(True)
+        layout.addWidget(self.repository)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
 
 def read_cert_file(path: str) -> str:
@@ -124,10 +169,21 @@ class EntriesDialog(QDialog):
         query = self.search.text().casefold()
         self.entries = [e for e in self.storage.list() if query in e.name.casefold()]
         self.table.setRowCount(len(self.entries))
-        for row, item in enumerate(self.entries):
-            for column, text in enumerate((item.kind, item.name, "Yes" if item.trusted else "No",
-                                           "Yes" if item.enabled else "No")):
-                self.table.setItem(row, column, QTableWidgetItem(text))
+        dark = is_dark(getattr(self.parent(), "theme", "system"))
+        for row, entry in enumerate(self.entries):
+            self.table.setItem(row, 0, QTableWidgetItem(entry.kind))
+            self.table.setItem(row, 1, QTableWidgetItem(entry.name))
+            trusted = QTableWidgetItem("✓" if entry.trusted else "✗")
+            trusted.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            color = ("#56c38b" if dark else "#16834c") if entry.trusted else (
+                "#ff7070" if dark else "#c92b2b"
+            )
+            trusted.setForeground(QColor(color))
+            trusted.setToolTip("Trusted" if entry.trusted else "Not trusted")
+            self.table.setItem(row, 2, trusted)
+            self.table.setItem(row, 3, QTableWidgetItem(
+                "Yes" if entry.enabled else "No"
+            ))
         self.table.resizeColumnsToContents()
 
     def current(self):
@@ -195,6 +251,7 @@ class MainWindow(QMainWindow):
             self.theme = "system"
         apply_theme(self.theme)
         self.setWindowTitle("CertScope - X.509 Certificate Inspector")
+        self.setWindowIcon(application_icon())
         self.resize(1280, 840)
         self._create_ui()
 
@@ -208,6 +265,9 @@ class MainWindow(QMainWindow):
         settings = QPushButton("Settings")
         settings.clicked.connect(self.open_settings)
         toolbar.addWidget(settings)
+        about = QPushButton("About")
+        about.clicked.connect(self.open_about)
+        toolbar.addWidget(about)
         toolbar.addStretch()
         toolbar.addWidget(QLabel("Certificates and CA bundles stay on this computer"))
         layout.addLayout(toolbar)
@@ -323,6 +383,9 @@ class MainWindow(QMainWindow):
         except (RuntimeError, TypeError):
             pass
         super().closeEvent(event)
+
+    def open_about(self):
+        AboutDialog(self).exec()
 
     def open_settings(self):
         dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self,
@@ -591,11 +654,6 @@ def run(initial_input: str | None = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
     register_font()
     window = MainWindow()
-    icon = Path(__file__).resolve().parents[2] / "assets" / "certscope.png"
-    if not icon.is_file() and hasattr(sys, "_MEIPASS"):
-        icon = Path(sys._MEIPASS) / "assets" / "certscope.png"
-    if icon.is_file():
-        window.setWindowIcon(QIcon(str(icon)))
     window.show()
     if initial_input is not None:
         QTimer.singleShot(0, lambda: window.load_input(initial_input))
