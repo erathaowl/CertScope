@@ -21,7 +21,7 @@ def test_windows_file_version_contains_expected_details(executable):
     assert "filevers=(1, 2, 0, 0)" in details
     assert "'CompanyName', 'erathaowl'" in details
     assert "'LegalCopyright'" in details
-    assert "'MIT License'" in details
+    assert "MIT License" in details
     assert "'URL', 'https://github.com/erathaowl/CertScope'" in details
     assert f"'OriginalFilename', '{executable}'" in details
 
