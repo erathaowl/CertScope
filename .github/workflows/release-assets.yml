@@ -1,0 +1,131 @@
+name: Attach source and wheel to releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-assets.yml
+  release:
+    types: [published]
+  workflow_run:
+    workflows: [Test and build]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (leave empty to backfill missing assets)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: certscope-release-assets
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+      - name: Select releases missing source or wheel
+        id: tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            tags="$(jq -cn --arg tag "$RELEASE_TAG" '[$tag]')"
+          elif [[ -n "$INPUT_TAG" ]]; then
+            tags="$(jq -cn --arg tag "$INPUT_TAG" '[$tag]')"
+          else
+            releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+            tags="$(jq -c '
+              [.[] as $release
+              | select($release.draft == false)
+              | select($release.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | select(
+                  ([$release.assets[].name] | any(test("-source\\.zip$")) | not)
+                  or
+                  ([$release.assets[].name] | any(test("\\.whl$")) | not)
+                )
+              | $release.tag_name]' <<< "$releases")"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "Selected release tags: $tags"
+
+  publish:
+    needs: discover
+    if: needs.discover.outputs.tags != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.discover.outputs.tags) }}
+    steps:
+      - name: Check out exact release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.tag }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Archive original tagged source
+        env:
+          TAG: ${{ matrix.tag }}
+        shell: bash
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Unsupported release tag: $TAG" >&2
+            exit 1
+          }
+          mkdir -p dist
+          git archive --format=zip --prefix="CertScope-$TAG/" HEAD > "dist/CertScope-$TAG-source.zip"
+          test -s "dist/CertScope-$TAG-source.zip"
+          echo "Source ZIP contains the original, unmodified tag contents."
+      - name: Build wheel with the tag version
+        env:
+          TAG: ${{ matrix.tag }}
+        shell: bash
+        run: |
+          # Older tags declare version 0.1.0. Change metadata only in this
+          # temporary checkout, after creating the immutable source archive.
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["TAG"].removeprefix("v")
+          path = Path("pyproject.toml")
+          content = path.read_text(encoding="utf-8")
+          updated, count = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              f'version = "{version}"',
+              content,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit("Expected one static project version in pyproject.toml")
+          path.write_text(updated, encoding="utf-8")
+          PY
+          uv build --wheel --out-dir dist
+          wheel=(dist/certscope-"${TAG#v}"-*.whl)
+          [[ ${#wheel[@]} -eq 1 && -s "${wheel[0]}" ]] || {
+            echo "Versioned wheel is missing" >&2
+            exit 1
+          }
+      - name: Attach source ZIP and wheel to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.tag }}
+        shell: bash
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          wheel=(dist/certscope-"${TAG#v}"-*.whl)
+          gh release upload "$TAG" "dist/CertScope-$TAG-source.zip" "${wheel[0]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber

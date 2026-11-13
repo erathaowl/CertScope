@@ -92,3 +92,9 @@ To launch the GUI with automatic analysis from one parameter:
 The same behavior is available with `uv run certscope <input>` or `uv run certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
 
 The verification status bar now shows a green/red indicator. Verified path entries from system trust or trusted SQLite CAs use distinct theme-aware colors; database CA names appear before the subject in square brackets. The Settings dialog can open the database directory. Both PEM input editors have **Save as** to write their contents to a file. Structured tree summaries are dimmed and italic; strings, numbers, booleans and null values use the matching JSON syntax-highlighter colors.
+
+## Release artifacts
+
+GitHub releases include the Windows GUI and CLI executables, an explicit `CertScope-vX.Y.Z-source.zip` archive containing the **unchanged Git tag**, and a versioned `certscope-X.Y.Z-py3-none-any.whl` Python wheel built from that tag. The historical tagged `pyproject.toml` declared version `0.1.0`; the release workflow updates only the temporary build checkout's package metadata to match the tag, after archiving the original sources. No historical tag is changed.
+
+The [release-assets workflow](.github/workflows/release-assets.yml) automatically attaches these files when a release is published, and checks for missing assets after the main CI workflow completes. It can also be run manually through **Actions → Attach source and wheel to releases → Run workflow**, leaving `tag` blank to fill missing assets or specifying one tag (for example `v1.3.0`). This manual option also covers releases created by other workflows using `GITHUB_TOKEN`, which do not themselves emit a new release-workflow trigger.
