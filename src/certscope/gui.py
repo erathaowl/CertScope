@@ -35,7 +35,6 @@ class PemEditor(CodeEditor):
         super().__init__("pem")
         self.setAcceptDrops(True)
         self.setPlaceholderText("Paste one or more PEM CERTIFICATE blocks here, or drop a file")
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and event.mimeData().urls()[0].isLocalFile():
