@@ -23,7 +23,7 @@ def render(result: dict, fmt: str = "text") -> str:
         if result["identity_and_purpose"]["status"] == "failed":
             lines.append(f"Identity/purpose error: {result['identity_and_purpose']['message']}")
     for n, cert in enumerate(result.get("certificates", []), 1):
-        lines.extend((f"", f"Certificate {n}: {cert['subject']}", f"  Issuer: {cert['issuer']}",
+        lines.extend(("", f"Certificate {n}: {cert['subject']}", f"  Issuer: {cert['issuer']}",
                       f"  SHA256: {cert['fingerprint_sha256']}",
                       f"  Expires: {cert['not_after']}", f"  Public key: {cert['public_key']}"))
     return "\n".join(lines)
