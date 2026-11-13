@@ -37,7 +37,22 @@ def _openssl_result(leaf: Certificate, others: list[Certificate], source: TrustS
         chain = [Certificate(c, c.public_bytes(serialization.Encoding.PEM).decode("ascii"), 0)
                  for c in verified]
         anchor = chain[-1]
-        row.update(status="passed", verified_chain=[inspect_certificate(c) for c in chain],
+        provided = {leaf.fingerprint, *(item.fingerprint for item in others)}
+        verified_chain = []
+        for certificate in chain:
+            details = inspect_certificate(certificate)
+            fingerprint = certificate.fingerprint
+            if fingerprint == anchor.fingerprint:
+                origin = source.name
+            elif fingerprint in provided:
+                origin = "input"
+            else:
+                origin = source.name
+            details["origin"] = origin
+            if fingerprint in source.names and source.name == "database":
+                details["saved_name"] = source.names[fingerprint]
+            verified_chain.append(details)
+        row.update(status="passed", verified_chain=verified_chain,
                    anchor={**inspect_certificate(anchor), "saved_name": source.names.get(anchor.fingerprint),
                            "trust_source": source.name})
     except crypto.X509StoreContextError as exc:

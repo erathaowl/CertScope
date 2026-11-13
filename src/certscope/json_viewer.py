@@ -3,13 +3,13 @@
 import json
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QKeySequence
+from PySide6.QtGui import QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QMenu, QStackedWidget, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from certscope.code_editor import CodeEditor
+from certscope.code_editor import CodeEditor, JSON_COLORS
 
 
 def format_value(value) -> str:
@@ -95,10 +95,27 @@ class JsonViewer(QWidget):
         self._style_fields()
 
     def _style_fields(self):
-        color = QColor("#aab5c2" if self._dark else "#5c6877")
+        field_color = QColor("#aab5c2" if self._dark else "#5c6877")
+        summary_color = QColor("#929caa" if self._dark else "#6f7b89")
+        colors = JSON_COLORS[self._dark]
 
         def visit(item):
-            item.setForeground(0, color)
+            item.setForeground(0, field_color)
+            value = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(value, (dict, list)):
+                color = summary_color
+                font = QFont(self.tree.font())
+                font.setItalic(True)
+                item.setFont(1, font)
+            elif isinstance(value, str):
+                color = QColor(colors["string"])
+            elif isinstance(value, bool) or value is None:
+                color = QColor(colors["literal"])
+            elif isinstance(value, (int, float)):
+                color = QColor(colors["number"])
+            else:
+                color = self.tree.palette().text().color()
+            item.setForeground(1, color)
             for index in range(item.childCount()):
                 visit(item.child(index))
 

@@ -6,6 +6,14 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QSyntaxHighlighter, QTex
 from PySide6.QtWidgets import QPlainTextEdit
 
 
+JSON_COLORS = {
+    False: {"string": "#197b43", "key": "#1e5ea8", "literal": "#8836a9",
+            "number": "#ac581a"},
+    True: {"string": "#a8d6a3", "key": "#86c5ff", "literal": "#dbadff",
+           "number": "#ffbf7c"},
+}
+
+
 class SyntaxHighlighter(QSyntaxHighlighter):
     """Highlight PEM delimiters or JSON tokens without modifying document text."""
 
@@ -43,22 +51,19 @@ class SyntaxHighlighter(QSyntaxHighlighter):
         if self.language != "json":
             return
 
-        string_color = "#a8d6a3" if self.dark else "#197b43"
-        key_color = "#86c5ff" if self.dark else "#1e5ea8"
-        literal_color = "#dbadff" if self.dark else "#8836a9"
-        number_color = "#ffbf7c" if self.dark else "#ac581a"
+        colors = JSON_COLORS[self.dark]
 
         occupied = []
         for match in self.STRINGS.finditer(text):
             occupied.append((match.start(), match.end()))
             self.setFormat(match.start(), match.end() - match.start(),
-                           self._format(string_color))
+                           self._format(colors["string"]))
 
         for match in self.KEYS.finditer(text):
             self.setFormat(match.start(), match.end() - match.start(),
-                           self._format(key_color, bold=True))
+                           self._format(colors["key"], bold=True))
 
-        for pattern, color in ((self.LITERALS, literal_color), (self.NUMBERS, number_color)):
+        for pattern, color in ((self.LITERALS, colors["literal"]), (self.NUMBERS, colors["number"])):
             for match in pattern.finditer(text):
                 if any(start <= match.start() < end for start, end in occupied):
                     continue
