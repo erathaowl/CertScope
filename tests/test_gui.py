@@ -126,6 +126,7 @@ def test_tree_copy_and_color_contrast(qt_app):
         field_color = item.foreground(0).color()
         assert field_color.isValid()
         assert field_color != item.foreground(1).color()
+        button.close()
     viewer.close()
 
 
