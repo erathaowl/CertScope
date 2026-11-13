@@ -17,6 +17,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - name: Install Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0
       - run: uv sync --group dev
       - run: uv run pytest -q
       - run: uv run ruff check .
