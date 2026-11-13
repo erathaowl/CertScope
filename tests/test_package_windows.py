@@ -4,7 +4,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from scripts.package_windows import EXECUTABLES, create_archives
+from certscope.windows_package import EXECUTABLES, create_archives
 
 
 def test_archive_names_and_original_content(tmp_path):
