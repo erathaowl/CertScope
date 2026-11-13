@@ -187,8 +187,8 @@ class MainWindow(QMainWindow):
             box = QVBoxLayout(widget)
             box.addWidget(QLabel(title))
             actions = QHBoxLayout()
-            for label, action in (("Open file", lambda e=editor: self.open_file(e)),
-                                  ("Save named", lambda e=editor, k=kind: self.save_entry(k, e)),
+            for label, action in (("Open file", lambda checked=False, e=editor: self.open_file(e)),
+                                  ("Save named", lambda checked=False, e=editor, k=kind: self.save_entry(k, e)),
                                   ("Clear", editor.clear)):
                 button = QPushButton(label)
                 button.clicked.connect(action)
