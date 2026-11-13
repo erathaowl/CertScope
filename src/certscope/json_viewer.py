@@ -38,8 +38,11 @@ class CopyableTree(QTreeWidget):
             result = json.dumps({key: value}, indent=2, ensure_ascii=False, default=str)
         else:
             raise ValueError(f"Unknown copy action: {action}")
-        QApplication.clipboard().setText(result)
+        self.copy_text(result)
         return result
+
+    def copy_text(self, text: str):
+        QApplication.clipboard().setText(text)
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.StandardKey.Copy) and self.currentItem():
