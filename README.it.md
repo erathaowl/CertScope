@@ -68,3 +68,19 @@ Con **Settings** è possibile scegliere font monospaziato, dimensione (8–32 pt
 La vista ad albero consente la selezione delle celle, Ctrl+C e il menu contestuale **Copy field / Copy value / Copy element**. Il testo copiato è completo anche quando il valore mostrato è abbreviato. La modalità Tree/JSON viene ripristinata dal database SQLite. Il tema chiaro rende leggibili i pulsanti e quello scuro utilizza righe alternate meno contrastate.
 
 Il build Windows produce due EXE singoli: **CertScope.exe** avvia la GUI senza console; **CertScope-CLI.exe** conserva stdout, stderr e codici d'uscita per l'uso da terminale.
+
+## Recupero da URL e apertura automatica
+
+Inserisci `https://example.com:443`, `tls://host:8443` oppure `host:port` nel campo **TLS URL** e premi **Fetch and analyze**. La connessione TLS avviene senza verificare preventivamente la CA; viene acquisita la catena presentata dal server e subito dopo viene eseguita la verifica ordinaria con le CA di sistema, di SQLite e custom. La verifica TLS controlla anche l'hostname. Non vengono effettuate richieste HTTP né scaricate pagine. La richiesta ha timeout di otto secondi e non blocca la GUI.
+
+Uno splitter verticale sotto gli editor dei certificati e delle CA permette di ridimensionare l'area dei risultati.
+
+Avvio diretto con analisi automatica tramite un solo argomento:
+
+```powershell
+.\dist\CertScope.exe .\server.pem
+.\dist\CertScope.exe https://example.com:443
+.\dist\CertScope.exe '-----BEGIN CERTIFICATE-----...'
+```
+
+Sono supportati anche `uv run certscope <input>` e `uv run certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.

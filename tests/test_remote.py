@@ -82,3 +82,24 @@ def test_fetch_disables_validation_and_preserves_chain(monkeypatch):
     assert response.pem == (
         ssl.DER_cert_to_PEM_cert(raw) + ssl.DER_cert_to_PEM_cert(another)
     )
+
+
+def test_entrypoint_routes_single_input_to_gui(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from certscope.main import main
+
+    received = []
+    monkeypatch.setitem(sys.modules, "certscope.gui",
+                        SimpleNamespace(run=lambda initial_input=None: received.append(initial_input) or 0))
+    assert main(["server.pem"]) == 0
+    assert main(["https://example.com:443"]) == 0
+    assert main(["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----"]) == 0
+    assert main(["gui", "localhost:443"]) == 0
+    assert received == [
+        "server.pem",
+        "https://example.com:443",
+        "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----",
+        "localhost:443",
+    ]

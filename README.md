@@ -74,3 +74,19 @@ MIT licensed project code. Packaged PySide6/Qt and other dependencies retain the
 Choose **Settings** to configure a monospace font, font size (8–32 pt), and light/dark/system-auto appearance. Preferences persist in the local SQLite database. Input PEM and structured output use a shared syntax-highlighted Qt editor; **Tree** and **JSON** modes are available for certificate details, verification diagnostics and validated paths. The default font is JetBrains Mono Nerd Font Mono v3.5.1 (see `scripts/vendor-font.py` and bundled license).
 
 The structured tree supports cell selection, Ctrl+C (field or value according to the selected column), and right-click actions **Copy field**, **Copy value**, and **Copy element**. Copying a value uses the complete source data, including text truncated on screen. The Tree/JSON selection is restored from SQLite on startup. Both color themes explicitly style buttons, menus, and the subtle alternate tree rows.
+
+## Fetch a certificate from a TLS server
+
+Enter `https://example.com:443`, `tls://host:8443` or `host:port` into the **TLS URL** field and press **Fetch and analyze**. CertScope establishes a TLS connection **without validating the server during retrieval**, extracts the presented unverified certificate chain (on supported Python/OpenSSL builds) and immediately runs normal verification against system, trusted SQLite and custom CAs. The hostname is populated automatically and the TLS-server purpose checks identity. The connection does not send an HTTP request or download the page. Certificate retrieval has an eight-second timeout, and the UI remains responsive.
+
+A vertical splitter below the certificate and custom-CA editors lets you resize the input area and the inspection results independently.
+
+To launch the GUI with automatic analysis from one parameter:
+
+```powershell
+.\dist\CertScope.exe .\server.pem
+.\dist\CertScope.exe https://example.com:443
+.\dist\CertScope.exe '-----BEGIN CERTIFICATE-----...'
+```
+
+The same behavior is available with `uv run certscope <input>` or `uv run certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
