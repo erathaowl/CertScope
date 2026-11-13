@@ -22,7 +22,7 @@ def test_tls_target(target, host, port):
     assert parse_tls_target(target) == (host, port)
 
 
-@pytest.mark.parametrize("target", ["http://example.com", "https://user:pass@example.com", "ftp://host"])
+@pytest.mark.parametrize("target", ["http://example.com", "https://user:pass@example.com", "ftp://host", "https://host:0"])
 def test_tls_rejects_unsupported_target(target):
     with pytest.raises(ValueError):
         parse_tls_target(target)
