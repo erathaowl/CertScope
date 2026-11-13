@@ -9,7 +9,7 @@ from platformdirs import user_data_path
 
 from certscope.parser import InputError, bundle_digest, normalize_bundle, parse_bundle
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,18 @@ class Storage:
                     );
                     PRAGMA user_version = 1;
                 """)
+            db.execute("CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            db.execute("PRAGMA user_version = 2")
+
+    def get_preference(self, key: str, default: str = "") -> str:
+        with self.connect() as db:
+            row = db.execute("SELECT value FROM preferences WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_preference(self, key: str, value: str):
+        with self.connect() as db:
+            db.execute("""INSERT INTO preferences(key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value""", (key, value))
 
     def connect(self):
         conn = sqlite3.connect(self.path, timeout=10)
