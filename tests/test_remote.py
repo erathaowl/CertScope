@@ -5,7 +5,7 @@ import ssl
 import pytest
 
 from certscope.input_source import classify_input
-from certscope.remote import fetch_certificate, parse_tls_target
+from certscope.remote import _untrusted_context, fetch_certificate, parse_tls_target
 
 
 @pytest.mark.parametrize(
@@ -40,6 +40,12 @@ def test_classify_startup_input(tmp_path):
         classify_input(str(tmp_path / "missing.pem"))
 
 
+def test_untrusted_ssl_context():
+    context = _untrusted_context()
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_NONE
+
+
 def test_fetch_disables_validation_and_preserves_chain(monkeypatch):
     raw = bytes.fromhex("3003020101")
     another = bytes.fromhex("3003020102")
@@ -72,7 +78,7 @@ def test_fetch_disables_validation_and_preserves_chain(monkeypatch):
             assert self.verify_mode == ssl.CERT_NONE
             return TLS()
 
-    monkeypatch.setattr("certscope.remote.ssl.SSLContext", Context)
+    monkeypatch.setattr("certscope.remote._untrusted_context", lambda: Context())
     monkeypatch.setattr("certscope.remote.socket.create_connection",
                         lambda target, timeout: calls.update(target=target) or Socket())
     response = fetch_certificate("https://example.com:9443/path", timeout=5)
@@ -85,14 +91,13 @@ def test_fetch_disables_validation_and_preserves_chain(monkeypatch):
 
 
 def test_entrypoint_routes_single_input_to_gui(monkeypatch):
-    import sys
-    from types import SimpleNamespace
-
     from certscope.main import main
 
     received = []
-    monkeypatch.setitem(sys.modules, "certscope.gui",
-                        SimpleNamespace(run=lambda initial_input=None: received.append(initial_input) or 0))
+    from certscope import gui
+
+    monkeypatch.setattr(gui, "run",
+                        lambda initial_input=None: received.append(initial_input) or 0)
     assert main(["server.pem"]) == 0
     assert main(["https://example.com:443"]) == 0
     assert main(["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----"]) == 0
