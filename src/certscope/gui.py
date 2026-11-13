@@ -245,6 +245,8 @@ class MainWindow(QMainWindow):
         mode_row.addWidget(QLabel("Result view"))
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Tree", "JSON"])
+        saved_mode = self.storage.get_preference("result_view", "Tree")
+        self.view_mode.setCurrentText(saved_mode if saved_mode in ("Tree", "JSON") else "Tree")
         self.view_mode.currentTextChanged.connect(self.set_result_mode)
         mode_row.addWidget(self.view_mode)
         mode_row.addStretch()
@@ -264,6 +266,7 @@ class MainWindow(QMainWindow):
             bottom.addWidget(button)
         layout.addLayout(bottom)
         self.setCentralWidget(root)
+        self.set_result_mode(self.view_mode.currentText(), save=False)
         self.apply_appearance()
         QApplication.styleHints().colorSchemeChanged.connect(self.on_system_theme_changed)
 
@@ -299,9 +302,11 @@ class MainWindow(QMainWindow):
             viewer.configure(self.font_family, self.font_size, dark)
         self.tree.setFont(self.cert_edit.font())
 
-    def set_result_mode(self, mode):
+    def set_result_mode(self, mode, save=True):
         for viewer in (self.details, self.path_details, self.diagnostics):
             viewer.set_mode(mode)
+        if save:
+            self.storage.set_preference("result_view", mode)
 
     def open_file(self, editor):
         path, _ = QFileDialog.getOpenFileName(self, "Open certificate", "",

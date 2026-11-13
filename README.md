@@ -59,11 +59,11 @@ Run on Windows (cross-compilation from Linux is not supported):
 ```powershell
 uv sync --group dev
 uv run pyinstaller --noconfirm --clean certscope.spec
-.\dist\CertScope.exe --help
-.\dist\CertScope.exe verify --cert .\server-chain.pem --format json
+.\dist\CertScope-CLI.exe --help
+.\dist\CertScope-CLI.exe verify --cert .\server-chain.pem --format json
 ```
 
-A Windows GitHub Actions workflow builds and uploads the EXE artifact. The bundled executable is console-capable for stdout, stderr and exit codes. A console window may appear when launched by double click, depending on the PyInstaller and Windows version.
+A Windows GitHub Actions workflow builds and uploads the EXE artifact. The workflow produces two independent single-file executables: **CertScope.exe** is a windowed GUI without a background console; **CertScope-CLI.exe** provides stdout, stderr and exit codes for headless terminal use. This separation avoids Windows GUI-subsystem limitations when redirecting console output.
 
 ## License and redistribution
 
@@ -72,3 +72,5 @@ MIT licensed project code. Packaged PySide6/Qt and other dependencies retain the
 ## Appearance
 
 Choose **Settings** to configure a monospace font, font size (8–32 pt), and light/dark/system-auto appearance. Preferences persist in the local SQLite database. Input PEM and structured output use a shared syntax-highlighted Qt editor; **Tree** and **JSON** modes are available for certificate details, verification diagnostics and validated paths. The default font is JetBrains Mono Nerd Font Mono v3.5.1 (see `scripts/vendor-font.py` and bundled license).
+
+The structured tree supports cell selection, Ctrl+C (field or value according to the selected column), and right-click actions **Copy field**, **Copy value**, and **Copy element**. Copying a value uses the complete source data, including text truncated on screen. The Tree/JSON selection is restored from SQLite on startup. Both color themes explicitly style buttons, menus, and the subtle alternate tree rows.

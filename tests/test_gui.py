@@ -87,3 +87,63 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     assert another.theme == "dark"
     assert another.font_size == 13
     another.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_tree_copy_and_color_contrast(qt_app):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QPushButton
+    from certscope.json_viewer import JsonViewer
+    from certscope.preferences import apply_theme
+
+    viewer = JsonViewer()
+    long_value = "long data " * 30
+    viewer.set_data({"name": long_value, "nested": {"count": 2}})
+    root = viewer.tree.topLevelItem(0)
+    item = root.child(0)
+    assert len(item.text(1)) < len(long_value)
+    assert viewer.tree.copy_item(item, "field") == "name"
+    assert qt_app.clipboard().text() == "name"
+    assert viewer.tree.copy_item(item, "value") == long_value
+    assert qt_app.clipboard().text() == long_value
+    assert viewer.tree.copy_item(root.child(1), "element") == (
+        '{\n  "nested": {\n    "count": 2\n  }\n}'
+    )
+    viewer.tree.setCurrentItem(item, 1)
+    event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+    viewer.tree.keyPressEvent(event)
+    assert qt_app.clipboard().text() == long_value
+
+    for theme in ("light", "dark"):
+        apply_theme(theme)
+        viewer.configure("Consolas", 11, theme == "dark")
+        button = QPushButton("Visible")
+        assert "QPushButton" in qt_app.styleSheet()
+        assert button.palette().buttonText().color().lightness() != (
+            button.palette().button().color().lightness()
+        )
+        field_color = item.foreground(0).color()
+        assert field_color.isValid()
+        assert field_color != item.foreground(1).color()
+    viewer.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_result_view_preference_restored(tmp_path, monkeypatch, qt_app):
+    from certscope.gui import MainWindow
+    from certscope.storage import Storage
+
+    path = tmp_path / "prefs.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    first = MainWindow()
+    first.view_mode.setCurrentText("JSON")
+    assert first.storage.get_preference("result_view") == "JSON"
+    first.close()
+
+    second = MainWindow()
+    assert second.view_mode.currentText() == "JSON"
+    assert second.details.stack.currentIndex() == 1
+    second.view_mode.setCurrentText("Tree")
+    second.close()
+    assert Storage(path).get_preference("result_view") == "Tree"

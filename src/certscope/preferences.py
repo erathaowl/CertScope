@@ -43,6 +43,10 @@ def apply_theme(theme: str):
     if app is None:
         return
     dark = is_dark(theme)
+    # Windows native button rendering can ignore QPalette foregrounds.
+    # Fusion and explicit control colors keep text legible in both themes.
+    if app.style().objectName().lower() != "fusion":
+        app.setStyle("Fusion")
     palette = QPalette()
     colors = {
         QPalette.ColorRole.Window: "#25272b" if dark else "#f4f5f7",
@@ -66,6 +70,82 @@ def apply_theme(theme: str):
     palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText,
                      QColor("#858a94" if dark else "#9ba0a8"))
     app.setPalette(palette)
+    foreground = "#e7eaf0" if dark else "#20252a"
+    button = "#343840" if dark else "#e7ebf0"
+    hover = "#424854" if dark else "#d7e0eb"
+    border = "#505661" if dark else "#aeb8c4"
+    base = "#1a1c20" if dark else "#ffffff"
+    alternate = "#202226" if dark else "#f5f7fa"
+    highlight = "#294e70" if dark else "#d5e8fb"
+    selected_text = "#ffffff" if dark else "#172b42"
+    app.setStyleSheet(f"""
+        QPushButton, QToolButton {{
+            color: {foreground};
+            background-color: {button};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 5px 10px;
+        }}
+        QPushButton:hover, QToolButton:hover {{
+            background-color: {hover};
+        }}
+        QPushButton:pressed, QToolButton:pressed {{
+            background-color: {highlight};
+        }}
+        QPushButton:disabled {{
+            color: {"#858a94" if dark else "#87929f"};
+            background-color: {"#2b2f35" if dark else "#f0f1f3"};
+        }}
+        QComboBox, QSpinBox, QFontComboBox, QLineEdit {{
+            color: {foreground};
+            background-color: {base};
+            border: 1px solid {border};
+            border-radius: 3px;
+            padding: 4px;
+        }}
+        QComboBox QAbstractItemView {{
+            color: {foreground};
+            background-color: {base};
+            selection-background-color: {highlight};
+            selection-color: {selected_text};
+        }}
+        QTreeWidget, QTableWidget {{
+            color: {foreground};
+            background-color: {base};
+            alternate-background-color: {alternate};
+            selection-background-color: {highlight};
+            selection-color: {selected_text};
+            border: 1px solid {border};
+        }}
+        QTreeWidget::item:selected, QTableWidget::item:selected {{
+            background-color: {highlight};
+            color: {selected_text};
+        }}
+        QHeaderView::section {{
+            color: {foreground};
+            background-color: {button};
+            border: 1px solid {border};
+            padding: 4px;
+        }}
+        QMenu {{
+            color: {foreground};
+            background-color: {base};
+            border: 1px solid {border};
+        }}
+        QMenu::item:selected {{
+            color: {selected_text};
+            background-color: {highlight};
+        }}
+        QTabBar::tab {{
+            color: {foreground};
+            background-color: {button};
+            border: 1px solid {border};
+            padding: 5px 12px;
+        }}
+        QTabBar::tab:selected {{
+            background-color: {base};
+        }}
+    """)
 
 
 class SettingsDialog(QDialog):

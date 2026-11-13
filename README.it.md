@@ -64,3 +64,7 @@ Il workflow GitHub Actions carica l'EXE come artifact. L'eseguibile mantiene la 
 ## Aspetto
 
 Con **Settings** è possibile scegliere font monospaziato, dimensione (8–32 pt) e tema chiaro/scuro/automatico. Le preferenze restano nel database SQLite locale. Gli editor PEM e i risultati usano un componente Qt comune con evidenziazione; i dettagli strutturati hanno modalità **Tree** e **JSON**. Il font predefinito è JetBrains Mono Nerd Font Mono v3.5.1 (vedere `scripts/vendor-font.py` e la licenza inclusa).
+
+La vista ad albero consente la selezione delle celle, Ctrl+C e il menu contestuale **Copy field / Copy value / Copy element**. Il testo copiato è completo anche quando il valore mostrato è abbreviato. La modalità Tree/JSON viene ripristinata dal database SQLite. Il tema chiaro rende leggibili i pulsanti e quello scuro utilizza righe alternate meno contrastate.
+
+Il build Windows produce due EXE singoli: **CertScope.exe** avvia la GUI senza console; **CertScope-CLI.exe** conserva stdout, stderr e codici d'uscita per l'uso da terminale.
