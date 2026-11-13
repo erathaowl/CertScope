@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from certscope.inspector import inspect_certificate
 from certscope.parser import leaf_candidates, parse_bundle
 from certscope.reporting import render
 from certscope.storage import Storage
