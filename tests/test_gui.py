@@ -34,6 +34,7 @@ def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, edit
 
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
     app = QApplication.instance() or QApplication([])
+    assert app is not None
     window = MainWindow()
     editor = getattr(window, editor_name)
     buttons = {button.text(): button for button in editor.parentWidget().findChildren(QPushButton)}
@@ -63,6 +64,7 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch):
     path = tmp_path / "gui.sqlite3"
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
     app = QApplication.instance() or QApplication([])
+    assert app is not None
     window = MainWindow()
     window.details.set_data({"subject": "example", "extensions": [1, 2]})
     window.view_mode.setCurrentText("JSON")
