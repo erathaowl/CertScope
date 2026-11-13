@@ -103,7 +103,7 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     assert verified_item.foreground(0).color().isValid()
     window.view_mode.setCurrentText("JSON")
     assert window.details.stack.currentIndex() == 1
-    assert '"subject": "example"' in window.details.code.toPlainText()
+    assert '"subject": "CN=Leaf"' in window.details.code.toPlainText()
     window.view_mode.setCurrentText("Tree")
     assert window.details.tree.topLevelItemCount() == 1
     window.storage.set_preference("theme", "dark")
