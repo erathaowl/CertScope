@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from OpenSSL import crypto
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import serialization
 
 from certscope.parser import Certificate, parse_bundle
 from certscope.storage import Storage
