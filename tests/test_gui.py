@@ -30,7 +30,8 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from certscope.gui import AboutDialog, EntriesDialog, MainWindow
-    from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL, __version__
+    from certscope import __version__
+    from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
     from certscope.storage import Storage
 
     path = tmp_path / "gui.sqlite3"

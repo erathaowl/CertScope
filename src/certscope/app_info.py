@@ -1,7 +1,5 @@
 """Application identity shared by the GUI and Windows executable metadata."""
 
-from certscope import __version__
-
 APP_NAME = "CertScope"
 APP_AUTHOR = "erathaowl"
 APP_LICENSE = "MIT"

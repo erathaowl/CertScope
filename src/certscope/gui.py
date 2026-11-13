@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QDialogButtonBox,
 )
 
-from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL, __version__
+from certscope import __version__
+from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input
