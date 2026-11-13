@@ -7,15 +7,16 @@ requires-python = ">=3.14"
 license = "MIT"
 authors = [{name = "erathaowl"}]
 
-[project.urls]
-Homepage = "https://github.com/erathaowl/CertScope"
-Repository = "https://github.com/erathaowl/CertScope"
 dependencies = [
     "cryptography>=45,<48",
     "pyOpenSSL>=25.1,<27",
     "platformdirs>=4,<6",
     "PySide6>=6.10,<7",
 ]
+
+[project.urls]
+Homepage = "https://github.com/erathaowl/CertScope"
+Repository = "https://github.com/erathaowl/CertScope"
 
 [project.scripts]
 certscope = "certscope.main:main"
