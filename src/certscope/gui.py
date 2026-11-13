@@ -1,6 +1,5 @@
 """Qt desktop interface with independent certificate and trust-anchor inputs."""
 
-import json
 import sys
 from pathlib import Path
 
@@ -8,7 +7,7 @@ from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
+    QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
