@@ -1,0 +1,41 @@
+name: Release CertScope 1.2.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-v1.2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tested Windows executables
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download 43443793871 --repo "${{ github.repository }}" --name CertScope-Windows --dir dist
+          test -s dist/CertScope.exe
+          test -s dist/CertScope-CLI.exe
+      - name: Publish v1.2.0 from verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 0e593c572eeefd9b8ee8ec82ba63f1c4fa59e1d3
+        run: |
+          if gh release view v1.2.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v1.2.0 already exists; no changes made."
+            exit 0
+          fi
+          gh release create v1.2.0 \
+            dist/CertScope.exe dist/CertScope-CLI.exe \
+            --repo "${{ github.repository }}" \
+            --target "$TARGET_SHA" \
+            --title "CertScope 1.2.0" \
+            --notes "CertScope 1.2.0 adds a green/red verification status indicator; provenance colors and local database CA names in the verified certificate tree; an Open database folder button in Settings; Save as for both PEM input editors; and theme-aware, type-specific value colors and italic composite summaries in the JSON tree. The release is built from tested commit 0e593c5 and includes the Windows GUI and CLI executables." \
+            --latest
