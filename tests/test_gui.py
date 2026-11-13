@@ -14,6 +14,7 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch):
 
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
     app = QApplication.instance() or QApplication([])
+    assert app is not None
     window = MainWindow()
     assert window.cert_edit is not None
     assert window.ca_edit is not None
