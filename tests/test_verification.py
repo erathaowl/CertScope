@@ -19,6 +19,9 @@ def test_local_database_anchor_wins_over_custom(tmp_path, chain):
     result = verify_bundle(chain["chain"], storage, chain["root"])
     assert result["trust_source"] == "database", result["attempts"]
     assert result["trust_anchor"]["saved_name"] == "My Test Root"
+    assert result["verified_chain"][-1]["origin"] == "database"
+    assert result["verified_chain"][-1]["saved_name"] == "My Test Root"
+    assert result["verified_chain"][0]["origin"] == "input"
     assert len(result["attempts"]) == 2
 
 
@@ -57,4 +60,6 @@ def test_same_anchor_system_takes_priority(tmp_path, chain):
     result = verify_bundle(chain["chain"], storage, chain["root"], sources=[source])
     assert result["status"] == "trusted"
     assert result["trust_source"] == "system"
+    assert result["verified_chain"][-1]["origin"] == "system"
+    assert result["verified_chain"][0]["origin"] == "input"
     assert len(result["attempts"]) == 1

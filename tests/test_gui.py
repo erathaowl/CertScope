@@ -33,6 +33,11 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app):
     assert window.ca_edit is not None
     assert window.vertical_splitter.count() == 2
     assert window.url_input is not None
+    assert window.trust_indicator.isHidden()
+    window.set_trust_indicator(True)
+    assert window.trust_indicator.toolTip() == "Trusted"
+    window.set_trust_indicator(False)
+    assert window.trust_indicator.toolTip() == "Untrusted"
     window.close()
 
 
@@ -56,6 +61,11 @@ def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, edit
     buttons["Open file"].click()
     assert editor.toPlainText() == "sample PEM"
 
+    output = tmp_path / "saved.pem"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(output), ""))
+    buttons["Save as"].click()
+    assert output.read_text(encoding="utf-8") == "sample PEM"
+
     monkeypatch.setattr(QInputDialog, "getText", lambda *args, **kwargs: ("Example", True))
     monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.No)
     saved = []
@@ -77,6 +87,20 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     assert qt_app is not None
     window = MainWindow()
     window.details.set_data({"subject": "example", "extensions": [1, 2]})
+    window.show_report({
+        "status": "trusted", "chain_status": "trusted", "trust_source": "database",
+        "certificates": [{"subject": "CN=Leaf", "pem": "leaf"}],
+        "verified_chain": [
+            {"subject": "CN=Leaf", "pem": "leaf", "origin": "input"},
+            {"subject": "CN=Root", "pem": "root", "origin": "database",
+             "saved_name": "Office CA"},
+        ],
+        "trust_anchor": {"subject": "CN=Root"},
+    })
+    assert window.trust_indicator.toolTip() == "Trusted"
+    verified_item = window.tree.topLevelItem(1).child(1)
+    assert verified_item.text(0).startswith("[Office CA] CN=Root")
+    assert verified_item.foreground(0).color().isValid()
     window.view_mode.setCurrentText("JSON")
     assert window.details.stack.currentIndex() == 1
     assert '"subject": "example"' in window.details.code.toPlainText()
@@ -108,6 +132,12 @@ def test_tree_copy_actions(qt_app, monkeypatch):
     assert copied[-1] == "name"
     assert viewer.tree.copy_item(item, "value") == long_value
     assert copied[-1] == long_value
+    viewer.configure("Consolas", 11, True)
+    assert item.foreground(1).color().isValid()
+    assert root.child(1).font(1).italic()
+    assert item.foreground(1).color() != root.child(1).foreground(1).color()
+    viewer.configure("Consolas", 11, False)
+    assert root.child(1).font(1).italic()
     assert viewer.tree.copy_item(root.child(1), "element") == (
         '{\n  "nested": {\n    "count": 2\n  }\n}'
     )

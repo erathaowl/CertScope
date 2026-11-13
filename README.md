@@ -90,3 +90,5 @@ To launch the GUI with automatic analysis from one parameter:
 ```
 
 The same behavior is available with `uv run certscope <input>` or `uv run certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
+
+The verification status bar now shows a green/red indicator. Verified path entries from system trust or trusted SQLite CAs use distinct theme-aware colors; database CA names appear before the subject in square brackets. The Settings dialog can open the database directory. Both PEM input editors have **Save as** to write their contents to a file. Structured tree summaries are dimmed and italic; strings, numbers, booleans and null values use the matching JSON syntax-highlighter colors.

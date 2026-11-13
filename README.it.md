@@ -84,3 +84,5 @@ Avvio diretto con analisi automatica tramite un solo argomento:
 ```
 
 Sono supportati anche `uv run certscope <input>` e `uv run certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.
+
+La barra di stato visualizza un indicatore verde/rosso per la verifica. Nell'albero della chain i certificati provenienti dal sistema e dal database usano colori distinti; le CA locali riportano il nome assegnato tra parentesi quadre. Da Settings puoi aprire la cartella del database. Entrambi gli editor PEM hanno il pulsante **Save as**. Gli elementi compositi dell'albero JSON mostrano i riepiloghi attenuati e in corsivo; stringhe, numeri, booleani e null hanno gli stessi colori dell'evidenziazione JSON.
