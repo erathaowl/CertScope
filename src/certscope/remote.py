@@ -36,6 +36,14 @@ def parse_tls_target(value: str) -> tuple[str, int]:
     return parsed.hostname, port
 
 
+def _untrusted_context() -> ssl.SSLContext:
+    """Create a client context that allows retrieval of untrusted certificates."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
 def fetch_certificate(value: str, timeout: float = 8.0) -> RemoteCertificate:
     """Connect without verifying trust, returning the server's unverified chain.
 
@@ -43,9 +51,7 @@ def fetch_certificate(value: str, timeout: float = 8.0) -> RemoteCertificate:
     subsequently verified by CertScope's existing separate verification logic.
     """
     host, port = parse_tls_target(value)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+    context = _untrusted_context()
 
     with socket.create_connection((host, port), timeout=timeout) as connection:
         with context.wrap_socket(connection, server_hostname=host) as tls:
