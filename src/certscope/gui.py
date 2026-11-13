@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QThread, Qt, Signal, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
+from certscope.input_source import classify_input
+from certscope.remote import fetch_certificate, parse_tls_target
 from certscope.preferences import SettingsDialog, apply_theme, is_dark, register_font
 from certscope.parser import leaf_candidates, parse_bundle
 from certscope.reporting import render
@@ -68,6 +70,23 @@ class AnalysisWorker(QThread):
             result = verify_bundle(self.pem, self.storage, self.ca, self.purpose,
                                    self.hostname, self.fingerprint)
             self.completed.emit(result)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class FetchWorker(QThread):
+    """Perform the untrusted network handshake without blocking the UI."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            self.completed.emit(fetch_certificate(self.url))
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -164,6 +183,7 @@ class MainWindow(QMainWindow):
         self.storage = Storage()
         self.report = None
         self.worker = None
+        self.fetch_worker = None
         self.certificate_data = []
         self.font_family = self.storage.get_preference("font_family", register_font())
         try:
@@ -192,6 +212,17 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(QLabel("Certificates and CA bundles stay on this computer"))
         layout.addLayout(toolbar)
 
+        remote = QHBoxLayout()
+        remote.addWidget(QLabel("TLS URL"))
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("https://example.com:443 or host:port")
+        self.url_input.returnPressed.connect(self.start_remote_fetch)
+        remote.addWidget(self.url_input, 1)
+        self.fetch_button = QPushButton("Fetch and analyze")
+        self.fetch_button.clicked.connect(self.start_remote_fetch)
+        remote.addWidget(self.fetch_button)
+        layout.addLayout(remote)
+
         editors = QSplitter(Qt.Orientation.Horizontal)
         self.cert_edit, self.ca_edit = PemEditor(), PemEditor()
         for title, editor, kind in (("Certificate / chain PEM", self.cert_edit, "certificate"),
@@ -209,7 +240,12 @@ class MainWindow(QMainWindow):
             box.addLayout(actions)
             box.addWidget(editor)
             editors.addWidget(widget)
-        layout.addWidget(editors, 2)
+        self.vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.vertical_splitter.setChildrenCollapsible(False)
+        self.vertical_splitter.addWidget(editors)
+        lower = QWidget()
+        lower_layout = QVBoxLayout(lower)
+        lower_layout.setContentsMargins(0, 0, 0, 0)
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Purpose"))
@@ -223,7 +259,7 @@ class MainWindow(QMainWindow):
         self.analyze_btn = QPushButton("Analyze and verify")
         self.analyze_btn.clicked.connect(self.analyze)
         controls.addWidget(self.analyze_btn)
-        layout.addLayout(controls)
+        lower_layout.addLayout(controls)
 
         results = QSplitter(Qt.Orientation.Horizontal)
         self.tree = QTreeWidget()
@@ -254,7 +290,7 @@ class MainWindow(QMainWindow):
         result_layout.addWidget(self.tabs)
         results.addWidget(result_panel)
         results.setStretchFactor(1, 3)
-        layout.addWidget(results, 3)
+        lower_layout.addWidget(results, 1)
 
         bottom = QHBoxLayout()
         self.status = QLabel("Paste a certificate or open a file to begin")
@@ -264,7 +300,12 @@ class MainWindow(QMainWindow):
             button = QPushButton(label)
             button.clicked.connect(callback)
             bottom.addWidget(button)
-        layout.addLayout(bottom)
+        lower_layout.addLayout(bottom)
+        self.vertical_splitter.addWidget(lower)
+        self.vertical_splitter.setStretchFactor(0, 1)
+        self.vertical_splitter.setStretchFactor(1, 2)
+        self.vertical_splitter.setSizes([300, 450])
+        layout.addWidget(self.vertical_splitter, 1)
         self.setCentralWidget(root)
         self.set_result_mode(self.view_mode.currentText(), save=False)
         self.apply_appearance()
@@ -307,6 +348,50 @@ class MainWindow(QMainWindow):
             viewer.set_mode(mode)
         if save:
             self.storage.set_preference("result_view", mode)
+
+    def load_input(self, value: str):
+        """Populate and analyze a startup PEM string, certificate file or URL."""
+        try:
+            kind, content = classify_input(value)
+            if kind == "url":
+                self.url_input.setText(content)
+                self.start_remote_fetch()
+                return
+            pem = read_cert_file(content) if kind == "file" else content
+            self.cert_edit.setPlainText(pem)
+            self.analyze()
+        except (OSError, ValueError, UnicodeError) as exc:
+            self.show_error(f"Cannot load initial input: {exc}")
+
+    def start_remote_fetch(self):
+        """Fetch the peer chain without trusting its signer, then verify it normally."""
+        if self.fetch_worker is not None and self.fetch_worker.isRunning():
+            return
+        url = self.url_input.text().strip()
+        try:
+            host, port = parse_tls_target(url)
+        except ValueError as exc:
+            self.show_error(str(exc))
+            return
+        self.fetch_button.setEnabled(False)
+        self.status.setText(f"Fetching presented TLS chain from {host}:{port}...")
+        self.fetch_worker = FetchWorker(url)
+        self.fetch_worker.completed.connect(self.on_remote_fetched)
+        self.fetch_worker.failed.connect(self.on_remote_error)
+        self.fetch_worker.finished.connect(self.on_remote_finished)
+        self.fetch_worker.start()
+
+    def on_remote_fetched(self, result):
+        self.cert_edit.setPlainText(result.pem)
+        self.hostname.setText(result.hostname)
+        self.purpose.setCurrentText("tls-server")
+        self.analyze()
+
+    def on_remote_error(self, message: str):
+        self.show_error(f"TLS retrieval failed: {message}")
+
+    def on_remote_finished(self):
+        self.fetch_button.setEnabled(True)
 
     def open_file(self, editor):
         path, _ = QFileDialog.getOpenFileName(self, "Open certificate", "",
@@ -435,7 +520,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Export failed", str(exc))
 
 
-def run() -> int:
+def run(initial_input: str | None = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
     register_font()
     window = MainWindow()
@@ -445,4 +530,6 @@ def run() -> int:
     if icon.is_file():
         window.setWindowIcon(QIcon(str(icon)))
     window.show()
+    if initial_input is not None:
+        QTimer.singleShot(0, lambda: window.load_input(initial_input))
     return app.exec()
