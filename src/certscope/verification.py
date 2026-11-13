@@ -117,11 +117,26 @@ def verify_bundle(pem: str, storage: Storage, custom_ca: str | None = None,
         leaf = leafs[0]
 
     attempts: list[dict] = []
+    # Load each trust source only when reached, avoiding unnecessary parsing and
+    # ensuring database/custom failures cannot preempt a successful system check.
     if sources is None:
-        # Separate trust stores must never be merged.
-        sources = [system_source(purpose), database_source(storage), custom_source(custom_ca)]
-    for source in sources:
-        attempt = _openssl_result(leaf, [c for c in certs if c.fingerprint != leaf.fingerprint], source)
+        factories = [
+            ("system", lambda: system_source(purpose)),
+            ("database", lambda: database_source(storage)),
+            ("custom", lambda: custom_source(custom_ca)),
+        ]
+    else:
+        factories = [(source.name, lambda value=source: value) for source in sources]
+    for name, load in factories:
+        try:
+            source = load()
+            attempt = _openssl_result(
+                leaf, [c for c in certs if c.fingerprint != leaf.fingerprint], source
+            )
+        except (OSError, ValueError, RuntimeError) as exc:
+            attempt = {"source": name, "status": "unavailable", "error": str(exc),
+                       "code": None, "depth": None, "certificate": None,
+                       "verified_chain": [], "anchor": None}
         attempts.append(attempt)
         if attempt["status"] == "passed":
             break
