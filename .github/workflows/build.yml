@@ -23,7 +23,11 @@ jobs:
       - run: uv sync --group dev
       - name: Ensure pinned font is available
         run: uv run --no-project scripts/vendor-font.py
-      - run: uv run pytest -q
+      - name: Core tests
+        run: uv run pytest -q --ignore=tests/test_gui.py
+      - name: GUI smoke tests (Windows)
+        if: runner.os == 'Windows'
+        run: uv run pytest -q tests/test_gui.py
       - run: uv run ruff check .
   windows-exe:
     needs: test
