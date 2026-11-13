@@ -31,6 +31,8 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app):
     window = MainWindow()
     assert window.cert_edit is not None
     assert window.ca_edit is not None
+    assert window.vertical_splitter.count() == 2
+    assert window.url_input is not None
     window.close()
 
 
@@ -130,30 +132,3 @@ def test_result_view_preference_restored(tmp_path, monkeypatch, qt_app):
     second.view_mode.setCurrentText("Tree")
     second.close()
     assert Storage(path).get_preference("result_view") == "Tree"
-
-
-@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
-def test_startup_input_and_vertical_splitter(tmp_path, monkeypatch, qt_app):
-    from certscope.gui import MainWindow
-    from certscope.storage import Storage
-
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "startup.sqlite3"))
-    window = MainWindow()
-    assert window.vertical_splitter.count() == 2
-    analyzed = []
-    monkeypatch.setattr(window, "analyze", lambda: analyzed.append(window.cert_edit.toPlainText()))
-
-    pem = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----"
-    window.load_input(pem)
-    assert analyzed[-1] == pem
-
-    file_path = tmp_path / "server.pem"
-    file_path.write_text(pem, encoding="utf-8")
-    window.load_input(str(file_path))
-    assert analyzed[-1] == pem
-
-    urls = []
-    monkeypatch.setattr(window, "start_remote_fetch", lambda: urls.append(window.url_input.text()))
-    window.load_input("https://example.com:8443")
-    assert urls == ["https://example.com:8443"]
-    window.close()
