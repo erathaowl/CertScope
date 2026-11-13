@@ -1,6 +1,5 @@
 """Tests for the Windows release ZIP packaging."""
 
-from pathlib import Path
 from zipfile import ZipFile
 
 import pytest

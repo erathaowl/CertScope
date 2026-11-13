@@ -27,7 +27,7 @@ def test_windows_file_version_contains_expected_details(executable):
 
 
 def test_resource_writer(tmp_path):
-    write_version_files("1.2.0", tmp_path)
+    write_version_files("1.2.1", tmp_path)
     assert (tmp_path / "certscope-version.txt").is_file()
     assert (tmp_path / "certscope-cli-version.txt").is_file()
 

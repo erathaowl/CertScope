@@ -51,4 +51,4 @@ def test_cli_version_and_help(tmp_path):
     assert help_result.returncode == 0, help_result.stderr
     assert f"{APP_NAME} - {__version__} ({APP_LICENSE})" in help_result.stdout
     assert APP_URL in help_result.stdout
-    assert re.search(r"--version\\s+", help_result.stdout)
+    assert re.search(r"--version\s+", help_result.stdout)
