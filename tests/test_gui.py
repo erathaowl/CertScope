@@ -90,7 +90,7 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
-def test_tree_copy_and_color_contrast(qt_app):
+def test_tree_copy_and_color_contrast(qt_app, monkeypatch):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QKeyEvent
     from PySide6.QtWidgets import QPushButton
@@ -100,20 +100,22 @@ def test_tree_copy_and_color_contrast(qt_app):
     viewer = JsonViewer()
     long_value = "long data " * 30
     viewer.set_data({"name": long_value, "nested": {"count": 2}})
+    copied = []
+    monkeypatch.setattr(viewer.tree, "copy_text", copied.append)
     root = viewer.tree.topLevelItem(0)
     item = root.child(0)
     assert len(item.text(1)) < len(long_value)
     assert viewer.tree.copy_item(item, "field") == "name"
-    assert qt_app.clipboard().text() == "name"
+    assert copied[-1] == "name"
     assert viewer.tree.copy_item(item, "value") == long_value
-    assert qt_app.clipboard().text() == long_value
+    assert copied[-1] == long_value
     assert viewer.tree.copy_item(root.child(1), "element") == (
         '{\n  "nested": {\n    "count": 2\n  }\n}'
     )
     viewer.tree.setCurrentItem(item, 1)
     event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
     viewer.tree.keyPressEvent(event)
-    assert qt_app.clipboard().text() == long_value
+    assert copied[-1] == long_value
 
     for theme in ("light", "dark"):
         apply_theme(theme)
