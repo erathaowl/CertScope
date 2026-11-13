@@ -6,7 +6,7 @@ import sys
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     gui_command = not args or args[0] == "gui"
-    single_input = len(args) == 1 and not args[0].startswith("-") and args[0] not in (
+    single_input = len(args) == 1 and (not args[0].startswith("-") or "-----BEGIN CERTIFICATE-----" in args[0]) and args[0] not in (
         "inspect", "verify", "db"
     )
     if gui_command or single_input:
