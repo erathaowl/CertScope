@@ -1,0 +1,36 @@
+[project]
+name = "certscope"
+version = "0.1.0"
+description = "Offline X.509 certificate inspector and trust-chain verifier"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+authors = [{name = "CertScope contributors"}]
+dependencies = [
+    "cryptography>=45,<48",
+    "pyOpenSSL>=25.1,<27",
+    "platformdirs>=4,<6",
+    "PySide6>=6.10,<7",
+]
+
+[project.scripts]
+certscope = "certscope.main:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.14", "pyinstaller>=6.16"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/certscope"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
