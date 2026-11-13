@@ -26,6 +26,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/certscope"]
 
+[tool.hatch.build]
+include = ["src/certscope/**", "README.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

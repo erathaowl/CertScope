@@ -35,3 +35,13 @@ def test_duplicate_name_is_not_replaced_silently(tmp_path, chain):
     storage.save("ca", "Root", chain["root"])
     with pytest.raises(sqlite3.IntegrityError):
         storage.save("ca", "Root", chain["root"])
+
+
+def test_preferences_persist(tmp_path):
+    path = tmp_path / "settings.sqlite3"
+    storage = Storage(path)
+    assert storage.get_preference("theme", "system") == "system"
+    storage.set_preference("theme", "dark")
+    storage.set_preference("font_size", "14")
+    assert Storage(path).get_preference("theme") == "dark"
+    assert Storage(path).get_preference("font_size") == "14"

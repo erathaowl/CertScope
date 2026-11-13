@@ -60,3 +60,7 @@ uv run pyinstaller --noconfirm --clean certscope.spec
 ```
 
 Il workflow GitHub Actions carica l'EXE come artifact. L'eseguibile mantiene la console per stdout, stderr e codici di ritorno della CLI; il doppio clic può aprire temporaneamente una console. PySide6/Qt e le altre dipendenze hanno licenze proprie da rispettare nella redistribuzione.
+
+## Aspetto
+
+Con **Settings** è possibile scegliere font monospaziato, dimensione (8–32 pt) e tema chiaro/scuro/automatico. Le preferenze restano nel database SQLite locale. Gli editor PEM e i risultati usano un componente Qt comune con evidenziazione; i dettagli strutturati hanno modalità **Tree** e **JSON**. Il font predefinito è JetBrains Mono Nerd Font Mono v3.5.1 (vedere `scripts/vendor-font.py` e la licenza inclusa).

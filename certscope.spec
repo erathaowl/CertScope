@@ -5,6 +5,7 @@ from pathlib import Path
 
 block_cipher = None
 assets = [(str(Path('assets/certscope.png').resolve()), 'assets')]
+assets += [(str(file), 'certscope/assets') for file in Path('src/certscope/assets').glob('*') if file.is_file()]
 a = Analysis(
     ['launcher.py'],
     pathex=['src'],

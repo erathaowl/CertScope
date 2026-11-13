@@ -21,6 +21,8 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0
       - run: uv sync --group dev
+      - name: Ensure pinned font is available
+        run: uv run --no-project scripts/vendor-font.py
       - run: uv run pytest -q
       - run: uv run ruff check .
   windows-exe:
@@ -31,6 +33,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - run: uv run --no-project scripts/vendor-font.py
       - run: .\scripts\build-windows.ps1
         shell: pwsh
       - uses: actions/upload-artifact@v4
