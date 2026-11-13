@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from certscope import __version__
+from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.inspector import inspect_certificate
 from certscope.parser import InputError, leaf_candidates, parse_bundle
 from certscope.reporting import render
@@ -23,7 +25,12 @@ def _read(path: str) -> str:
 
 
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="certscope", description="Inspect and verify X.509 certificates offline")
+    p = argparse.ArgumentParser(
+        prog="certscope",
+        description=f"{APP_NAME} - {__version__} ({APP_LICENSE})",
+        epilog=APP_URL,
+    )
+    p.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     p.add_argument("--db", metavar="PATH", help="Custom SQLite database path")
     commands = p.add_subparsers(dest="command", required=True)
 

@@ -64,8 +64,21 @@ jobs:
           TAG: ${{ needs.validate.outputs.tag }}
         shell: bash
         run: |
-          test -s dist/CertScope.exe
-          test -s dist/CertScope-CLI.exe
+          test -s dist/certscope-windows.zip
+          test -s dist/certscope-cli-windows.zip
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          expected = {
+              "certscope-windows.zip": "certscope.exe",
+              "certscope-cli-windows.zip": "certscope-cli.exe",
+          }
+          for archive, executable in expected.items():
+              with ZipFile(Path("dist") / archive) as package:
+                  assert package.namelist() == [executable]
+                  assert package.getinfo(executable).file_size > 0
+          PY
           git archive --format=zip --prefix="CertScope-$TAG/" HEAD > "dist/CertScope-$TAG-source.zip"
           test -s "dist/CertScope-$TAG-source.zip"
       - name: Build versioned Python wheel
@@ -112,8 +125,8 @@ jobs:
           shopt -s nullglob
           wheels=(dist/certscope-"${TAG#v}"-*.whl)
           gh release create "$TAG" \
-            dist/CertScope.exe \
-            dist/CertScope-CLI.exe \
+            dist/certscope-windows.zip \
+            dist/certscope-cli-windows.zip \
             "dist/CertScope-$TAG-source.zip" \
             "${wheels[0]}" \
             --repo "$GITHUB_REPOSITORY" \

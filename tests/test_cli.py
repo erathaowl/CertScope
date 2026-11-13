@@ -1,4 +1,5 @@
 import json
+import re
 import os
 import subprocess
 import sys
@@ -36,3 +37,18 @@ def test_cli_db_and_invalid_stdin(tmp_path, chain):
     failed = invoke(tmp_path, "verify", "--cert", "-", "--ca", "-", "--format", "json")
     assert failed.returncode == 2
     assert json.loads(failed.stdout)["status"] == "invalid_input"
+
+
+def test_cli_version_and_help(tmp_path):
+    from certscope import __version__
+    from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
+
+    version = invoke(tmp_path, "--version")
+    assert version.returncode == 0, version.stderr
+    assert version.stdout.strip() == f"{APP_NAME} {__version__}"
+
+    help_result = invoke(tmp_path, "--help")
+    assert help_result.returncode == 0, help_result.stderr
+    assert f"{APP_NAME} - {__version__} ({APP_LICENSE})" in help_result.stdout
+    assert APP_URL in help_result.stdout
+    assert re.search(r"--version\\s+", help_result.stdout)

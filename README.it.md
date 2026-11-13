@@ -56,7 +56,7 @@ Su Windows:
 ```powershell
 uv sync --group dev
 uv run pyinstaller --noconfirm --clean certscope.spec
-.\dist\CertScope.exe --help
+.\dist\certscope.exe --help
 ```
 
 Il workflow GitHub Actions carica l'EXE come artifact. L'eseguibile mantiene la console per stdout, stderr e codici di ritorno della CLI; il doppio clic può aprire temporaneamente una console. PySide6/Qt e le altre dipendenze hanno licenze proprie da rispettare nella redistribuzione.
@@ -67,7 +67,7 @@ Con **Settings** è possibile scegliere font monospaziato, dimensione (8–32 pt
 
 La vista ad albero consente la selezione delle celle, Ctrl+C e il menu contestuale **Copy field / Copy value / Copy element**. Il testo copiato è completo anche quando il valore mostrato è abbreviato. La modalità Tree/JSON viene ripristinata dal database SQLite. Il tema chiaro rende leggibili i pulsanti e quello scuro utilizza righe alternate meno contrastate.
 
-Il build Windows produce due EXE singoli: **CertScope.exe** avvia la GUI senza console; **CertScope-CLI.exe** conserva stdout, stderr e codici d'uscita per l'uso da terminale.
+Il build Windows produce due EXE singoli: **certscope.exe** avvia la GUI senza console; **certscope-cli.exe** conserva stdout, stderr e codici d'uscita per l'uso da terminale.
 
 ## Recupero da URL e apertura automatica
 
@@ -78,9 +78,9 @@ Uno splitter verticale sotto gli editor dei certificati e delle CA permette di r
 Avvio diretto con analisi automatica tramite un solo argomento:
 
 ```powershell
-.\dist\CertScope.exe .\server.pem
-.\dist\CertScope.exe https://example.com:443
-.\dist\CertScope.exe '-----BEGIN CERTIFICATE-----...'
+.\dist\certscope.exe .\server.pem
+.\dist\certscope.exe https://example.com:443
+.\dist\certscope.exe '-----BEGIN CERTIFICATE-----...'
 ```
 
 Sono supportati anche `uv run certscope <input>` e `uv run certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.
@@ -90,3 +90,5 @@ La barra di stato visualizza un indicatore verde/rosso per la verifica. Nell'alb
 ## Workflow di release
 
 Il repository ha tre workflow: [Test and build](.github/workflows/build.yml), [Release](.github/workflows/release.yml) e [Vendor pinned editor font](.github/workflows/vendor-font.yml). Per pubblicare una nuova versione, crea e invia un tag `vX.Y.Z`, ad esempio `git tag v1.3.0 && git push origin v1.3.0`. Il workflow riutilizza i test Linux/Windows e genera entrambi gli EXE; al termine pubblica una release con EXE GUI, EXE CLI, ZIP del sorgente esatto al tag e wheel Python con la versione corrispondente. È possibile avviarlo anche manualmente da GitHub Actions indicando un tag già esistente. Le release 1.0, 1.1 e 1.2 rimangono inalterate.
+
+La CLI supporta `--version` e mostra nome e versione. L'output di `--help` include `CertScope - <version> (MIT)` e l'URL del repository GitHub. Gli eseguibili hanno nomi minuscoli (`certscope.exe`, `certscope-cli.exe`), mentre gli asset delle release sono `certscope-windows.zip` e `certscope-cli-windows.zip`, ciascuno contenente il relativo EXE. Anche le release precedenti vengono riconfezionate preservando i binari originali.

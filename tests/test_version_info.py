@@ -15,7 +15,7 @@ def test_current_package_identity():
     assert current_version() == __version__
 
 
-@pytest.mark.parametrize("executable", ["CertScope.exe", "CertScope-CLI.exe"])
+@pytest.mark.parametrize("executable", ["certscope.exe", "certscope-cli.exe"])
 def test_windows_file_version_contains_expected_details(executable):
     details = version_text("1.2.1", executable)
     assert "filevers=(1, 2, 1, 0)" in details
@@ -28,8 +28,8 @@ def test_windows_file_version_contains_expected_details(executable):
 
 def test_resource_writer(tmp_path):
     write_version_files("1.2.0", tmp_path)
-    assert (tmp_path / "CertScope-version.txt").is_file()
-    assert (tmp_path / "CertScope-CLI-version.txt").is_file()
+    assert (tmp_path / "certscope-version.txt").is_file()
+    assert (tmp_path / "certscope-cli-version.txt").is_file()
 
 
 def test_invalid_versions():

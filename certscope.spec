@@ -40,5 +40,5 @@ def build_executable(name, console):
 
 
 # The GUI must use the Windows subsystem; the CLI needs a real console.
-gui_exe = build_executable('CertScope', console=False)
-cli_exe = build_executable('CertScope-CLI', console=True)
+gui_exe = build_executable('certscope', console=False)
+cli_exe = build_executable('certscope-cli', console=True)

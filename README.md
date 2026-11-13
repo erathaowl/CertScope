@@ -59,11 +59,11 @@ Run on Windows (cross-compilation from Linux is not supported):
 ```powershell
 uv sync --group dev
 uv run pyinstaller --noconfirm --clean certscope.spec
-.\dist\CertScope-CLI.exe --help
-.\dist\CertScope-CLI.exe verify --cert .\server-chain.pem --format json
+.\dist\certscope-cli.exe --help
+.\dist\certscope-cli.exe verify --cert .\server-chain.pem --format json
 ```
 
-A Windows GitHub Actions workflow builds and uploads the EXE artifact. The workflow produces two independent single-file executables: **CertScope.exe** is a windowed GUI without a background console; **CertScope-CLI.exe** provides stdout, stderr and exit codes for headless terminal use. This separation avoids Windows GUI-subsystem limitations when redirecting console output.
+A Windows GitHub Actions workflow builds and uploads the EXE artifact. The workflow produces two independent single-file executables: **certscope.exe** is a windowed GUI without a background console; **certscope-cli.exe** provides stdout, stderr and exit codes for headless terminal use. This separation avoids Windows GUI-subsystem limitations when redirecting console output.
 
 ## License and redistribution
 
@@ -84,9 +84,9 @@ A vertical splitter below the certificate and custom-CA editors lets you resize 
 To launch the GUI with automatic analysis from one parameter:
 
 ```powershell
-.\dist\CertScope.exe .\server.pem
-.\dist\CertScope.exe https://example.com:443
-.\dist\CertScope.exe '-----BEGIN CERTIFICATE-----...'
+.\dist\certscope.exe .\server.pem
+.\dist\certscope.exe https://example.com:443
+.\dist\certscope.exe '-----BEGIN CERTIFICATE-----...'
 ```
 
 The same behavior is available with `uv run certscope <input>` or `uv run certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
@@ -95,8 +95,10 @@ The verification status bar now shows a green/red indicator. Verified path entri
 
 ## Release artifacts
 
-GitHub releases include the Windows GUI and CLI executables, an explicit `CertScope-vX.Y.Z-source.zip` archive containing the **unchanged Git tag**, and a versioned `certscope-X.Y.Z-py3-none-any.whl` Python wheel built from that tag. The historical tagged `pyproject.toml` declared version `0.1.0`; the release workflow updates only the temporary build checkout's package metadata to match the tag, after archiving the original sources. No historical tag is changed.
+GitHub releases include `certscope-windows.zip` (containing `certscope.exe`) and `certscope-cli-windows.zip` (containing `certscope-cli.exe`), an explicit `CertScope-vX.Y.Z-source.zip` archive containing the **unchanged Git tag**, and a versioned `certscope-X.Y.Z-py3-none-any.whl` Python wheel built from that tag. The historical tagged `pyproject.toml` declared version `0.1.0`; the release workflow updates only the temporary build checkout's package metadata to match the tag, after archiving the original sources. No historical tag is changed.
 
-The project maintains three workflows: [Test and build](.github/workflows/build.yml), [Release](.github/workflows/release.yml), and [Vendor pinned editor font](.github/workflows/vendor-font.yml). The release workflow reuses the exact-tag Windows/Linux tests and Windows executable build. It then creates the unchanged source ZIP, builds a versioned wheel, and publishes all four files in a single GitHub release. Existing releases v1.0.0, v1.1.0, and v1.2.0 remain unchanged.
+The project maintains three workflows: [Test and build](.github/workflows/build.yml), [Release](.github/workflows/release.yml), and [Vendor pinned editor font](.github/workflows/vendor-font.yml). The release workflow reuses the exact-tag Windows/Linux tests and Windows executable build. It then creates the unchanged source ZIP, builds a versioned wheel, and publishes the two Windows ZIP archives, source ZIP, and wheel in a single GitHub release. Existing releases v1.0.0, v1.1.0, and v1.2.0 remain unchanged.
 
 To publish a new version, push its tag (for example, `git tag v1.3.0 && git push origin v1.3.0`). Alternatively, run **Actions → Release → Run workflow** with an existing `vX.Y.Z` tag. The release is published only after tests, lint, and the Windows EXE build pass. Re-running for an already published tag leaves its assets untouched.
+
+The CLI supports `--version` to print `CertScope <current version>`. Its `--help` output includes `CertScope - <version> (MIT)` and the GitHub repository URL. The Windows EXE filenames and release ZIP filenames use lowercase. Historical release assets have also been repackaged without changing the original executable bytes.

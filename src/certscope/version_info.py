@@ -51,7 +51,7 @@ def version_text(version: str, executable: str) -> str:
 
 def write_version_files(version: str, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
-    for executable in ("CertScope.exe", "CertScope-CLI.exe"):
+    for executable in ("certscope.exe", "certscope-cli.exe"):
         resource = destination / f"{executable.removesuffix('.exe')}-version.txt"
         resource.write_text(version_text(version, executable), encoding="utf-8")
 
