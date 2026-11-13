@@ -13,10 +13,16 @@ def qt_app():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
 
+    from PySide6.QtCore import QCoreApplication, QEvent
+
     app = QApplication.instance() or QApplication([])
     yield app
-    app.closeAllWindows()
+    for widget in app.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
+    app.quit()
 
 
 @pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
