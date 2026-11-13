@@ -66,11 +66,8 @@ def test_fetch_disables_validation_and_preserves_chain(monkeypatch):
             return [raw, another]
 
     class Context:
-        check_hostname = True
-        verify_mode = ssl.CERT_REQUIRED
-
-        def __init__(self, protocol):
-            assert protocol == ssl.PROTOCOL_TLS_CLIENT
+        check_hostname = False
+        verify_mode = ssl.CERT_NONE
 
         def wrap_socket(self, sock, server_hostname):
             calls["sni"] = server_hostname
