@@ -1,12 +1,13 @@
 """Per-user appearance preferences and the bundled editor font."""
 
 from importlib.resources import as_file, files
+from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFontComboBox,
-    QFormLayout, QSpinBox,
+    QFormLayout, QMessageBox, QPushButton, QSpinBox,
 )
 
 FONT_FILE = "JetBrainsMonoNerdFontMono-Regular.ttf"
@@ -148,8 +149,9 @@ def apply_theme(theme: str):
 class SettingsDialog(QDialog):
     """Edit font family, point size and theme before saving to SQLite."""
 
-    def __init__(self, family: str, size: int, theme: str, parent=None):
+    def __init__(self, family: str, size: int, theme: str, parent=None, db_path=None):
         super().__init__(parent)
+        self.db_folder = Path(db_path).expanduser().resolve().parent if db_path else None
         self.setWindowTitle("Settings")
         self.setMinimumWidth(390)
         layout = QFormLayout(self)
@@ -170,12 +172,26 @@ class SettingsDialog(QDialog):
         self.theme.setCurrentIndex(max(0, self.theme.findData(theme)))
         layout.addRow("Appearance", self.theme)
 
+        self.open_db_button = QPushButton("Open database folder")
+        self.open_db_button.setEnabled(self.db_folder is not None)
+        if self.db_folder:
+            self.open_db_button.setToolTip(str(self.db_folder))
+        self.open_db_button.clicked.connect(self.open_database_folder)
+        layout.addRow("Database", self.open_db_button)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
+
+    def open_database_folder(self):
+        if self.db_folder and not QDesktopServices.openUrl(
+            QUrl.fromLocalFile(str(self.db_folder))
+        ):
+            QMessageBox.warning(self, "Cannot open folder",
+                                f"Unable to open {self.db_folder}")
 
     def values(self) -> dict[str, str]:
         return {

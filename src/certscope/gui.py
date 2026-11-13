@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Qt, Signal, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QBrush, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -232,6 +232,7 @@ class MainWindow(QMainWindow):
             box.addWidget(QLabel(title))
             actions = QHBoxLayout()
             for label, action in (("Open file", lambda checked=False, e=editor: self.open_file(e)),
+                                  ("Save as", lambda checked=False, e=editor, k=kind: self.save_as(k, e)),
                                   ("Save named", lambda checked=False, e=editor, k=kind: self.save_entry(k, e)),
                                   ("Clear", editor.clear)):
                 button = QPushButton(label)
@@ -293,6 +294,10 @@ class MainWindow(QMainWindow):
         lower_layout.addWidget(results, 1)
 
         bottom = QHBoxLayout()
+        self.trust_indicator = QLabel("●")
+        self.trust_indicator.setToolTip("Verification not completed")
+        self.trust_indicator.hide()
+        bottom.addWidget(self.trust_indicator)
         self.status = QLabel("Paste a certificate or open a file to begin")
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         bottom.addWidget(self.status, 1)
@@ -320,7 +325,8 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def open_settings(self):
-        dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self)
+        dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self,
+                                db_path=self.storage.path)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             values = dialog.values()
             for key, value in values.items():
@@ -342,6 +348,44 @@ class MainWindow(QMainWindow):
         for viewer in (self.details, self.path_details, self.diagnostics):
             viewer.configure(self.font_family, self.font_size, dark)
         self.tree.setFont(self.cert_edit.font())
+        self.style_certificate_tree()
+        if self.report:
+            self.set_trust_indicator(self.report["status"] == "trusted")
+
+    def set_trust_indicator(self, trusted: bool | None):
+        if trusted is None:
+            self.trust_indicator.hide()
+            return
+        dark = is_dark(self.theme)
+        color = ("#56c38b" if dark else "#16834c") if trusted else (
+            "#ff7070" if dark else "#c92b2b"
+        )
+        self.trust_indicator.setStyleSheet(f"color: {color}; font-size: 19px;")
+        self.trust_indicator.setToolTip("Trusted" if trusted else "Untrusted")
+        self.trust_indicator.show()
+
+    def style_certificate_tree(self):
+        if not self.report:
+            return
+        path = self.tree.topLevelItem(1)
+        if path is None:
+            return
+        dark = is_dark(self.theme)
+        colors = {
+            "system": "#86c5ff" if dark else "#216aab",
+            "database": "#d2a8ff" if dark else "#7746ad",
+        }
+        for index, cert in enumerate(self.report["verified_chain"]):
+            item = path.child(index)
+            if item is None:
+                continue
+            origin = cert.get("origin", "input")
+            item.setForeground(0, QBrush(QColor(colors[origin])) if origin in colors
+                               else QBrush())
+            if origin == "system":
+                item.setToolTip(0, "Certificate from the system trust store")
+            elif origin == "database":
+                item.setToolTip(0, f"Certificate from the local database: {cert.get('saved_name', '')}")
 
     def set_result_mode(self, mode, save=True):
         for viewer in (self.details, self.path_details, self.diagnostics):
@@ -367,6 +411,7 @@ class MainWindow(QMainWindow):
         """Fetch the peer chain without trusting its signer, then verify it normally."""
         if self.fetch_worker is not None and self.fetch_worker.isRunning():
             return
+        self.set_trust_indicator(None)
         url = self.url_input.text().strip()
         try:
             host, port = parse_tls_target(url)
@@ -402,6 +447,20 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 QMessageBox.warning(self, "Open failed", str(exc))
 
+    def save_as(self, kind, editor):
+        filename = "certificate.pem" if kind == "certificate" else "custom-ca.pem"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save PEM to file", filename,
+            "PEM certificate (*.pem);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(editor.toPlainText(), encoding="utf-8")
+            self.status.setText(f"Saved PEM to {path}")
+        except OSError as exc:
+            QMessageBox.warning(self, "Save failed", str(exc))
+
     def save_entry(self, kind, editor):
         name, accepted = QInputDialog.getText(self, "Save named entry", "Entry name:")
         if not accepted or not name.strip():
@@ -427,6 +486,7 @@ class MainWindow(QMainWindow):
                 self.cert_edit.setPlainText(entry.pem_bundle)
 
     def analyze(self):
+        self.set_trust_indicator(None)
         pem = self.cert_edit.toPlainText()
         purpose = self.purpose.currentText()
         hostname = self.hostname.text().strip() or None
@@ -457,12 +517,15 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def show_error(self, message):
+        self.report = None
+        self.set_trust_indicator(None)
         self.status.setText(f"Analysis failed: {message}")
         self.diagnostics.set_data({"error": message})
         self.tabs.setCurrentWidget(self.diagnostics)
 
     def show_report(self, report):
         self.report = report
+        self.set_trust_indicator(report["status"] == "trusted")
         self.certificate_data = report["certificates"]
         self.tree.clear()
         provided = QTreeWidgetItem(["Provided certificates"])
@@ -474,11 +537,15 @@ class MainWindow(QMainWindow):
         path = QTreeWidgetItem(["Verified chain"])
         self.tree.addTopLevelItem(path)
         for index, cert in enumerate(report["verified_chain"]):
-            label = cert["subject"] + (" [trust anchor]" if index == len(report["verified_chain"]) - 1 else "")
+            name = cert.get("saved_name")
+            label = (f"[{name}] " if name else "") + cert["subject"]
+            if index == len(report["verified_chain"]) - 1:
+                label += " [trust anchor]"
             entry = QTreeWidgetItem([label])
             entry.setData(0, Qt.ItemDataRole.UserRole, ("verified", index))
             path.addChild(entry)
         self.tree.expandAll()
+        self.style_certificate_tree()
         self.path_details.set_data({"source": report["trust_source"],
             "trust_anchor": report["trust_anchor"],
             "verified_chain": report["verified_chain"]})
