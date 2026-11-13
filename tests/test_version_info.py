@@ -17,8 +17,8 @@ def test_current_package_identity():
 
 @pytest.mark.parametrize("executable", ["CertScope.exe", "CertScope-CLI.exe"])
 def test_windows_file_version_contains_expected_details(executable):
-    details = version_text("1.2.0", executable)
-    assert "filevers=(1, 2, 0, 0)" in details
+    details = version_text("1.2.1", executable)
+    assert "filevers=(1, 2, 1, 0)" in details
     assert "'CompanyName', 'erathaowl'" in details
     assert "'LegalCopyright'" in details
     assert "MIT License" in details

@@ -1,6 +1,6 @@
 [project]
 name = "certscope"
-version = "1.2.0"
+version = "1.2.1"
 description = "Offline X.509 certificate inspector and trust-chain verifier"
 readme = "README.md"
 requires-python = ">=3.14"
