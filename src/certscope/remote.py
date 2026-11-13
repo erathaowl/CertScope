@@ -28,7 +28,7 @@ def parse_tls_target(value: str) -> tuple[str, int]:
     if not parsed.hostname:
         raise ValueError("The TLS target must contain a hostname or IP address")
     try:
-        port = parsed.port or 443
+        port = 443 if parsed.port is None else parsed.port
     except ValueError as exc:
         raise ValueError("Invalid TLS port") from exc
     if not 1 <= port <= 65535:
