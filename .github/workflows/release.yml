@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: certscope-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Validate release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vX.Y.Z: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/build.yml
+    with:
+      source_ref: ${{ needs.validate.outputs.tag }}
+    permissions:
+      contents: read
+
+  publish:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v4
+        with:
+          name: CertScope-Windows
+          path: dist
+      - name: Archive tagged sources
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+        shell: bash
+        run: |
+          test -s dist/CertScope.exe
+          test -s dist/CertScope-CLI.exe
+          git archive --format=zip --prefix="CertScope-$TAG/" HEAD > "dist/CertScope-$TAG-source.zip"
+          test -s "dist/CertScope-$TAG-source.zip"
+      - name: Build versioned Python wheel
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+        shell: bash
+        run: |
+          # Keep the source archive unchanged; adjust metadata only for this wheel build.
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["TAG"].removeprefix("v")
+          path = Path("pyproject.toml")
+          content = path.read_text(encoding="utf-8")
+          content, count = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              f'version = "{version}"',
+              content,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit("Expected one static project version")
+          path.write_text(content, encoding="utf-8")
+          PY
+          uv build --wheel --out-dir dist
+          shopt -s nullglob
+          wheels=(dist/certscope-"${TAG#v}"-*.whl)
+          if [[ ${#wheels[@]} -ne 1 || ! -s "${wheels[0]}" ]]; then
+            echo "Expected exactly one versioned wheel" >&2
+            exit 1
+          fi
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; existing assets remain unchanged."
+            exit 0
+          fi
+          shopt -s nullglob
+          wheels=(dist/certscope-"${TAG#v}"-*.whl)
+          gh release create "$TAG" \
+            dist/CertScope.exe \
+            dist/CertScope-CLI.exe \
+            "dist/CertScope-$TAG-source.zip" \
+            "${wheels[0]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "CertScope ${TAG#v}" \
+            --generate-notes \
+            --latest

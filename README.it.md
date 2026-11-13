@@ -86,3 +86,7 @@ Avvio diretto con analisi automatica tramite un solo argomento:
 Sono supportati anche `uv run certscope <input>` e `uv run certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.
 
 La barra di stato visualizza un indicatore verde/rosso per la verifica. Nell'albero della chain i certificati provenienti dal sistema e dal database usano colori distinti; le CA locali riportano il nome assegnato tra parentesi quadre. Da Settings puoi aprire la cartella del database. Entrambi gli editor PEM hanno il pulsante **Save as**. Gli elementi compositi dell'albero JSON mostrano i riepiloghi attenuati e in corsivo; stringhe, numeri, booleani e null hanno gli stessi colori dell'evidenziazione JSON.
+
+## Workflow di release
+
+Il repository ha tre workflow: [Test and build](.github/workflows/build.yml), [Release](.github/workflows/release.yml) e [Vendor pinned editor font](.github/workflows/vendor-font.yml). Per pubblicare una nuova versione, crea e invia un tag `vX.Y.Z`, ad esempio `git tag v1.3.0 && git push origin v1.3.0`. Il workflow riutilizza i test Linux/Windows e genera entrambi gli EXE; al termine pubblica una release con EXE GUI, EXE CLI, ZIP del sorgente esatto al tag e wheel Python con la versione corrispondente. È possibile avviarlo anche manualmente da GitHub Actions indicando un tag già esistente. Le release 1.0, 1.1 e 1.2 rimangono inalterate.
