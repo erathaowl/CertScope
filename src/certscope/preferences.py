@@ -43,10 +43,7 @@ def apply_theme(theme: str):
     if app is None:
         return
     dark = is_dark(theme)
-    # Windows native button rendering can ignore QPalette foregrounds.
-    # Fusion and explicit control colors keep text legible in both themes.
-    if app.style().objectName().lower() != "fusion":
-        app.setStyle("Fusion")
+    # Explicit control colors keep text legible with the native Qt style.
     palette = QPalette()
     colors = {
         QPalette.ColorRole.Window: "#25272b" if dark else "#f4f5f7",
