@@ -267,6 +267,14 @@ class MainWindow(QMainWindow):
         self.apply_appearance()
         QApplication.styleHints().colorSchemeChanged.connect(self.on_system_theme_changed)
 
+    def closeEvent(self, event):
+        # Avoid keeping closed windows alive through the application-wide signal.
+        try:
+            QApplication.styleHints().colorSchemeChanged.disconnect(self.on_system_theme_changed)
+        except (RuntimeError, TypeError):
+            pass
+        super().closeEvent(event)
+
     def open_settings(self):
         dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
