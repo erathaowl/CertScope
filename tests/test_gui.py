@@ -6,17 +6,28 @@ import sys
 import pytest
 
 
-@pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
-def test_gui_window_can_be_constructed(tmp_path, monkeypatch):
+@pytest.fixture(scope="session")
+def qt_app():
+    """Keep one QApplication alive across every GUI test on Windows."""
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    yield app
+    app.closeAllWindows()
+    app.processEvents()
+
+
+@pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
+def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app):
+    pytest.importorskip("PySide6")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from certscope.gui import MainWindow
     from certscope.storage import Storage
 
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
-    app = QApplication.instance() or QApplication([])
-    assert app is not None
+    assert qt_app is not None
     window = MainWindow()
     assert window.cert_edit is not None
     assert window.ca_edit is not None
@@ -25,16 +36,15 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
 @pytest.mark.parametrize("editor_name", ["cert_edit", "ca_edit"])
-def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, editor_name):
+def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, editor_name, qt_app):
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox, QPushButton
+    from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QPushButton
     from certscope.gui import MainWindow
     from certscope.storage import Storage
 
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
-    app = QApplication.instance() or QApplication([])
-    assert app is not None
+    assert qt_app is not None
     window = MainWindow()
     editor = getattr(window, editor_name)
     buttons = {button.text(): button for button in editor.parentWidget().findChildren(QPushButton)}
@@ -54,17 +64,15 @@ def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, edit
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
-def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch):
+def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication
     from certscope.gui import MainWindow
     from certscope.storage import Storage
 
     path = tmp_path / "gui.sqlite3"
     monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
-    app = QApplication.instance() or QApplication([])
-    assert app is not None
+    assert qt_app is not None
     window = MainWindow()
     window.details.set_data({"subject": "example", "extensions": [1, 2]})
     window.view_mode.setCurrentText("JSON")
