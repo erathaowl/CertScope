@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Qt, Signal, QTimer, QSize
-from PySide6.QtGui import QBrush, QColor, QIcon, QDesktopServices, QFont
+from PySide6.QtGui import QBrush, QColor, QIcon, QFont
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QDialogButtonBox,
 )
 
-from certscope.app_info import APP_AUTHOR, APP_LICENSE, APP_NAME, APP_URL, __version__
+from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL, __version__
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input

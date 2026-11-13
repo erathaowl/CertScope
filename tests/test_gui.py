@@ -26,13 +26,15 @@ def qt_app():
 
 
 @pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
-def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app):
+def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from certscope.gui import MainWindow
+    from certscope.gui import AboutDialog, EntriesDialog, MainWindow
+    from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL, __version__
     from certscope.storage import Storage
 
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
+    path = tmp_path / "gui.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
     assert qt_app is not None
     window = MainWindow()
     assert window.cert_edit is not None
@@ -44,6 +46,27 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app):
     assert window.trust_indicator.toolTip() == "Trusted"
     window.set_trust_indicator(False)
     assert window.trust_indicator.toolTip() == "Untrusted"
+
+    about = AboutDialog(window)
+    assert about.identity.text() == f"{APP_NAME} - {__version__} ({APP_LICENSE})"
+    assert APP_URL in about.repository.text()
+    assert about.findChildren(type(about.identity))[0].pixmap() is not None
+    about.close()
+
+    storage = Storage(path)
+    storage.save("ca", "Trusted Root", chain["root"], trusted=True)
+    storage.save("ca", "Untrusted Root", chain["root"], trusted=False)
+    entries = EntriesDialog(storage, window)
+    states = {
+        entries.table.item(i, 1).text(): entries.table.item(i, 2)
+        for i in range(entries.table.rowCount())
+    }
+    assert states["Trusted Root"].text() == "✓"
+    assert states["Untrusted Root"].text() == "✗"
+    assert states["Trusted Root"].foreground().color() != (
+        states["Untrusted Root"].foreground().color()
+    )
+    entries.close()
     window.close()
 
 
