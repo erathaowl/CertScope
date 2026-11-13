@@ -13,6 +13,9 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
+from certscope.code_editor import CodeEditor
+from certscope.json_viewer import JsonViewer
+from certscope.preferences import SettingsDialog, apply_theme, is_dark, register_font
 from certscope.parser import leaf_candidates, parse_bundle
 from certscope.reporting import render
 from certscope.storage import Storage
@@ -26,11 +29,11 @@ def read_cert_file(path: str) -> str:
     return raw.decode("utf-8-sig")
 
 
-class PemEditor(QPlainTextEdit):
+class PemEditor(CodeEditor):
     """Plain text editor that accepts dragged certificate files."""
 
     def __init__(self):
-        super().__init__()
+        super().__init__("pem")
         self.setAcceptDrops(True)
         self.setPlaceholderText("Paste one or more PEM CERTIFICATE blocks here, or drop a file")
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -164,6 +167,15 @@ class MainWindow(QMainWindow):
         self.report = None
         self.worker = None
         self.certificate_data = []
+        self.font_family = self.storage.get_preference("font_family", register_font())
+        try:
+            self.font_size = max(8, min(32, int(self.storage.get_preference("font_size", "11"))))
+        except ValueError:
+            self.font_size = 11
+        self.theme = self.storage.get_preference("theme", "system")
+        if self.theme not in ("system", "light", "dark"):
+            self.theme = "system"
+        apply_theme(self.theme)
         self.setWindowTitle("CertScope - X.509 Certificate Inspector")
         self.resize(1280, 840)
         self._create_ui()
@@ -175,6 +187,9 @@ class MainWindow(QMainWindow):
         stored = QPushButton("Saved entries")
         stored.clicked.connect(self.manage)
         toolbar.addWidget(stored)
+        settings = QPushButton("Settings")
+        settings.clicked.connect(self.open_settings)
+        toolbar.addWidget(settings)
         toolbar.addStretch()
         toolbar.addWidget(QLabel("Certificates and CA bundles stay on this computer"))
         layout.addLayout(toolbar)
@@ -218,15 +233,26 @@ class MainWindow(QMainWindow):
         self.tree.itemSelectionChanged.connect(self.show_details)
         results.addWidget(self.tree)
         self.tabs = QTabWidget()
-        self.details = QPlainTextEdit()
-        self.path_details = QPlainTextEdit()
-        self.diagnostics = QPlainTextEdit()
-        self.raw = QPlainTextEdit()
+        self.details = JsonViewer()
+        self.path_details = JsonViewer()
+        self.diagnostics = JsonViewer()
+        self.raw = CodeEditor("pem", read_only=True)
         for name, edit in (("Details", self.details), ("Verified path", self.path_details),
                            ("Diagnostics", self.diagnostics), ("Raw PEM", self.raw)):
-            edit.setReadOnly(True)
             self.tabs.addTab(edit, name)
-        results.addWidget(self.tabs)
+        result_panel = QWidget()
+        result_layout = QVBoxLayout(result_panel)
+        result_layout.setContentsMargins(0, 0, 0, 0)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Result view"))
+        self.view_mode = QComboBox()
+        self.view_mode.addItems(["Tree", "JSON"])
+        self.view_mode.currentTextChanged.connect(self.set_result_mode)
+        mode_row.addWidget(self.view_mode)
+        mode_row.addStretch()
+        result_layout.addLayout(mode_row)
+        result_layout.addWidget(self.tabs)
+        results.addWidget(result_panel)
         results.setStretchFactor(1, 3)
         layout.addWidget(results, 3)
 
@@ -240,6 +266,36 @@ class MainWindow(QMainWindow):
             bottom.addWidget(button)
         layout.addLayout(bottom)
         self.setCentralWidget(root)
+        self.apply_appearance()
+        QApplication.styleHints().colorSchemeChanged.connect(self.on_system_theme_changed)
+
+    def open_settings(self):
+        dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            values = dialog.values()
+            for key, value in values.items():
+                self.storage.set_preference(key, value)
+            self.font_family = values["font_family"]
+            self.font_size = int(values["font_size"])
+            self.theme = values["theme"]
+            self.apply_appearance()
+
+    def on_system_theme_changed(self, scheme):
+        if self.theme == "system":
+            self.apply_appearance()
+
+    def apply_appearance(self):
+        apply_theme(self.theme)
+        dark = is_dark(self.theme)
+        for editor in (self.cert_edit, self.ca_edit, self.raw):
+            editor.configure(self.font_family, self.font_size, dark)
+        for viewer in (self.details, self.path_details, self.diagnostics):
+            viewer.configure(self.font_family, self.font_size, dark)
+        self.tree.setFont(self.cert_edit.font())
+
+    def set_result_mode(self, mode):
+        for viewer in (self.details, self.path_details, self.diagnostics):
+            viewer.set_mode(mode)
 
     def open_file(self, editor):
         path, _ = QFileDialog.getOpenFileName(self, "Open certificate", "",
@@ -293,7 +349,7 @@ class MainWindow(QMainWindow):
                 fingerprint = candidates[choices.index(selection)].fingerprint
         except Exception as exc:
             self.status.setText(f"Invalid certificate input: {exc}")
-            self.diagnostics.setPlainText(str(exc))
+            self.diagnostics.set_data({"error": str(exc)})
             return
         self.status.setText("Analyzing certificates and verifying trust...")
         self.analyze_btn.setEnabled(False)
@@ -306,7 +362,7 @@ class MainWindow(QMainWindow):
 
     def show_error(self, message):
         self.status.setText(f"Analysis failed: {message}")
-        self.diagnostics.setPlainText(message)
+        self.diagnostics.set_data({"error": message})
         self.tabs.setCurrentWidget(self.diagnostics)
 
     def show_report(self, report):
@@ -327,10 +383,10 @@ class MainWindow(QMainWindow):
             entry.setData(0, Qt.ItemDataRole.UserRole, ("verified", index))
             path.addChild(entry)
         self.tree.expandAll()
-        self.path_details.setPlainText(json.dumps({"source": report["trust_source"],
+        self.path_details.set_data({"source": report["trust_source"],
             "trust_anchor": report["trust_anchor"],
-            "verified_chain": [c["subject"] for c in report["verified_chain"]]}, indent=2))
-        self.diagnostics.setPlainText(render(report))
+            "verified_chain": report["verified_chain"]})
+        self.diagnostics.set_data(report)
         self.status.setText(f"Status: {report['status'].upper()} | Chain: {report['chain_status']} | "
                             f"Trust source: {report['trust_source'] or 'none'} | "
                             "Revocation: not checked")
@@ -347,7 +403,7 @@ class MainWindow(QMainWindow):
             return
         kind, index = data
         cert = self.certificate_data[index] if kind == "provided" else self.report["verified_chain"][index]
-        self.details.setPlainText(json.dumps({k: v for k, v in cert.items() if k != "pem"}, indent=2))
+        self.details.set_data({k: v for k, v in cert.items() if k != "pem"})
         self.raw.setPlainText(cert["pem"])
         self.tabs.setCurrentWidget(self.details)
 
@@ -370,6 +426,7 @@ class MainWindow(QMainWindow):
 
 def run() -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
+    register_font()
     window = MainWindow()
     icon = Path(__file__).resolve().parents[2] / "assets" / "certscope.png"
     if not icon.is_file() and hasattr(sys, "_MEIPASS"):
