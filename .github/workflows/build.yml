@@ -28,15 +28,22 @@ jobs:
       - name: Install Qt runtime libraries (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0
-      - run: uv sync --group dev
+      - name: Install core and test dependencies without GUI
+        run: uv sync --group dev
+      - name: Check headless installation
+        run: uv run --no-sync python -c "import importlib.util; assert importlib.util.find_spec('PySide6') is None; assert importlib.util.find_spec('yaml') is None"
+      - name: Core tests without GUI dependencies
+        run: uv run --no-sync pytest -q --ignore=tests/test_gui.py --ignore=tests/test_app_settings.py
+      - name: Install optional GUI dependencies
+        run: uv sync --extra gui --group dev
       - name: Ensure pinned font is available
         run: uv run --no-project scripts/vendor-font.py
-      - name: Core tests
-        run: uv run pytest -q --ignore=tests/test_gui.py
+      - name: GUI settings tests
+        run: uv run --no-sync pytest -q tests/test_app_settings.py
       - name: GUI smoke tests (Windows)
         if: runner.os == 'Windows'
-        run: uv run pytest -q tests/test_gui.py
-      - run: uv run ruff check .
+        run: uv run --no-sync pytest -q tests/test_gui.py
+      - run: uv run --no-sync ruff check .
   windows-exe:
     needs: test
     runs-on: windows-latest
