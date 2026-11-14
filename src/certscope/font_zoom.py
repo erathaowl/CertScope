@@ -20,10 +20,12 @@ class FontZoomController(QObject):
         self.refresh = refresh
         self._targets = {}
         self._widgets = {}
-        try:
-            values = json.loads(storage.get_preference(PREFERENCE_KEY, "{}"))
-        except (TypeError, ValueError):
-            values = {}
+        values = storage.get_preference(PREFERENCE_KEY, {})
+        if isinstance(values, str):
+            try:
+                values = json.loads(values)
+            except (TypeError, ValueError):
+                values = {}
         if not isinstance(values, dict):
             values = {}
         self.overrides = {
@@ -72,7 +74,7 @@ class FontZoomController(QObject):
             else:
                 self.overrides[key] = updated
             if self.overrides:
-                self.storage.set_preference(PREFERENCE_KEY, json.dumps(self.overrides, sort_keys=True))
+                self.storage.set_preference(PREFERENCE_KEY, dict(self.overrides))
             else:
                 self.storage.delete_preference(PREFERENCE_KEY)
             self.refresh()

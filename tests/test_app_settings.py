@@ -1,6 +1,6 @@
-"""Settings persist in JSON and migrate safely from historical SQLite databases."""
+"""Settings persist in YAML and migrate safely from historical SQLite databases."""
 
-import json
+import yaml
 import sqlite3
 
 from certscope.app_settings import AppSettings
@@ -9,7 +9,7 @@ from certscope.storage import Storage
 
 def test_settings_file_is_independent_from_certificate_database(tmp_path, chain):
     db_path = tmp_path / "certificates.sqlite3"
-    settings_path = tmp_path / "settings.json"
+    settings_path = tmp_path / "settings.yaml"
     storage = Storage(db_path)
     storage.save("ca", "Root", chain["root"], trusted=True)
 
@@ -18,7 +18,7 @@ def test_settings_file_is_independent_from_certificate_database(tmp_path, chain)
     settings.set_preference("theme", "dark")
     settings.set_preference("font_size", "15")
     settings.set_preference("last_database", str(db_path))
-    assert json.loads(settings_path.read_text()) == {
+    assert yaml.safe_load(settings_path.read_text()) == {
         "font_size": "15", "last_database": str(db_path), "theme": "dark"
     }
     assert AppSettings(settings_path).get_preference("theme") == "dark"
@@ -42,12 +42,12 @@ def test_legacy_settings_migrate_and_leave_certificate_entries_intact(tmp_path, 
             ("font_size_overrides", '{"certificate_pem": 18}'),
         ])
 
-    settings = AppSettings(tmp_path / "settings.json")
+    settings = AppSettings(tmp_path / "settings.yaml")
     settings.migrate_legacy(path)
     assert settings.get_preference("theme") == "dark"
     assert settings.get_preference("font_size") == "14"
     assert settings.get_preference("result_view") == "JSON"
-    assert settings.get_preference("font_size_overrides") == '{"certificate_pem": 18}'
+    assert settings.get_preference("font_size_overrides") == {"certificate_pem": 18}
     assert Storage(path).get("ca", "Legacy Root").trusted
     with sqlite3.connect(path) as db:
         assert db.execute(
@@ -58,7 +58,7 @@ def test_legacy_settings_migrate_and_leave_certificate_entries_intact(tmp_path, 
     assert settings.get_preference("font_size") == "14"
 
 
-def test_existing_json_preferences_take_precedence_during_migration(tmp_path):
+def test_existing_yaml_preferences_take_precedence_during_migration(tmp_path):
     database = tmp_path / "original.sqlite3"
     Storage(database)
     with sqlite3.connect(database) as db:
@@ -66,16 +66,16 @@ def test_existing_json_preferences_take_precedence_during_migration(tmp_path):
         db.execute("INSERT INTO preferences VALUES ('theme', 'dark')")
         db.execute("INSERT INTO preferences VALUES ('font_size', '12')")
 
-    settings = AppSettings(tmp_path / "settings.json")
+    settings = AppSettings(tmp_path / "settings.yaml")
     settings.set_preference("theme", "light")
     settings.migrate_legacy(database)
     assert settings.get_preference("theme") == "light"
     assert settings.get_preference("font_size") == "12"
 
 
-def test_invalid_settings_are_ignored_without_discarding_source(tmp_path):
-    path = tmp_path / "settings.json"
-    path.write_text("{invalid JSON", encoding="utf-8")
+def test_invalid_yaml_is_ignored_without_discarding_source(tmp_path):
+    path = tmp_path / "settings.yaml"
+    path.write_text("invalid: [", encoding="utf-8")
     settings = AppSettings(path)
     assert settings.get_preference("theme", "system") == "system"
-    assert path.read_text() == "{invalid JSON"
+    assert path.read_text() == "invalid: ["
