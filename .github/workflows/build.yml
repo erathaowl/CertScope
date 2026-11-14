@@ -1,8 +1,8 @@
-name: Test and build
+name: Test and build (Nuitka)
 
 on:
   push:
-    branches: [main]
+    branches: [nuitka]
   pull_request:
   workflow_dispatch:
   workflow_call:
@@ -40,6 +40,7 @@ jobs:
   windows-exe:
     needs: test
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,13 +53,13 @@ jobs:
         shell: pwsh
         env:
           CERTSCOPE_VERSION: ${{ inputs.source_ref }}
-      - name: Report executable and ZIP sizes against v1.3.0
+      - name: Report Nuitka sizes versus PyInstaller v1.3.1
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -Path baseline -ItemType Directory -Force | Out-Null
-          gh release download v1.3.0 --repo $env:GITHUB_REPOSITORY --dir baseline --pattern "certscope-windows.zip" --pattern "certscope-cli-windows.zip"
+          gh release download v1.3.1 --repo $env:GITHUB_REPOSITORY --dir baseline --pattern "certscope-windows.zip" --pattern "certscope-cli-windows.zip"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           uv run python scripts/size_report.py --baseline-dir baseline --current-dir dist --summary $env:GITHUB_STEP_SUMMARY
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

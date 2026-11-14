@@ -102,3 +102,8 @@ Il profilo predefinito è **RFC 5280**, adatto anche alle CA private. Il profilo
 Nella CLI usa `--lint` per RFC 5280 oppure `--lint-profile cabf-tls` per i controlli CA/B Forum, con `inspect` o `verify`. Il report JSON include l'oggetto `lint` con risultati per certificato, severità, codice, campo ASN.1 e messaggio. Il linting non modifica l'esito della validazione TLS né i codici di uscita. La libreria usa il DER originale, quando disponibile, senza richieste di rete.
 
 Il codice del progetto è distribuito con [licenza MIT](LICENSE).
+
+
+## Branch Nuitka
+
+Il branch [`nuitka`](https://github.com/erathaowl/CertScope/tree/nuitka) compila i due eseguibili Windows standalone con Nuitka 4.3.5 e Python 3.14. Mantiene la GUI Qt Widgets, la CLI, PKILint, le icone e i metadati di versione. La pipeline GitHub Actions del branch verifica le build e confronta le dimensioni con la release PyInstaller v1.3.1. Il branch `main` continua a usare PyInstaller.

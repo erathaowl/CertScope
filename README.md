@@ -127,3 +127,8 @@ optional certificate file, PEM string or TLS URL. `certscope-cli.exe` includes
 only the headless inspection, verification, PKILint and database modules, without Qt.
 Both binaries remain single-file EXEs with the existing Windows icon and version metadata.
 The CI build publishes size comparisons against the unchanged v1.3.0 release.
+
+
+## Nuitka branch
+
+The [`nuitka` branch](https://github.com/erathaowl/CertScope/tree/nuitka) builds two standalone Windows executables using Nuitka 4.3.5 and Python 3.14, preserving the existing Qt Widgets GUI, CLI, PKILint and Windows icons/version metadata. Run `scripts/build-windows.ps1` on Windows to create `dist/certscope.exe`, `dist/certscope-cli.exe` and their release-format ZIP archives. GitHub Actions validates the branch on every push and compares build sizes to the PyInstaller v1.3.1 release. The `main` branch continues to use PyInstaller.
