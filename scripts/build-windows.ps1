@@ -13,6 +13,22 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv run python scripts/smoke-frozen-lint.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# Exercise the actual frozen Qt executable without interacting with desktop UI.
+$previousPlatform = $env:QT_QPA_PLATFORM
+$env:QT_QPA_PLATFORM = 'offscreen'
+$guiProcess = Start-Process -FilePath '.\dist\certscope.exe' -PassThru -WindowStyle Hidden
+try {
+    Start-Sleep -Seconds 10
+    $guiProcess.Refresh()
+    if ($guiProcess.HasExited) {
+        throw "Frozen GUI exited prematurely with code $($guiProcess.ExitCode)"
+    }
+    Write-Host 'Frozen GUI launched and stayed running'
+} finally {
+    if (!$guiProcess.HasExited) { Stop-Process -Id $guiProcess.Id -Force }
+    $env:QT_QPA_PLATFORM = $previousPlatform
+}
 if (!(Test-Path '.\dist\certscope.exe')) { throw 'GUI executable missing' }
 if (!(Test-Path '.\dist\certscope-cli.exe')) { throw 'CLI executable missing' }
 
