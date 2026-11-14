@@ -6,15 +6,43 @@ CertScope è uno strumento locale per ispezionare certificati X.509 e verificare
 
 ## Requisiti e avvio
 
-Python 3.14+, `uv`, Windows oppure Linux.
+Python 3.14+, Windows oppure Linux. La GUI è opzionale; `uv` serve per lo sviluppo dal sorgente.
+
+Per installare soltanto CLI e core, senza Qt e YAML:
+
+```bash
+python -m pip install certscope
+certscope --help
+certscope inspect --cert server.pem
+```
+
+Per aggiungere la GUI:
+
+```bash
+python -m pip install "certscope[gui]"
+certscope
+```
+
+Questi comandi brevi richiedono la pubblicazione di CertScope su PyPI.
+Il codice attuale è già installabile direttamente da GitHub:
+
+```bash
+python -m pip install "certscope @ git+https://github.com/erathaowl/CertScope.git"
+python -m pip install "certscope[gui] @ git+https://github.com/erathaowl/CertScope.git"
+```
+
+Per lo sviluppo dal repository:
 
 ```bash
 uv python install 3.14
-uv sync
-uv run certscope
+uv sync --extra gui --group dev
+uv run --extra gui certscope
 ```
 
-Senza argomenti si apre la GUI. Incolla o carica il certificato/la chain nell'editor sinistro. Nell'editor destro puoi inserire una CA temporanea. Seleziona lo scopo della verifica e premi **Analyze and verify**. Dall'albero selezioni i certificati per visualizzare attributi e PEM originali. Le schede mostrano chain verificata, CA che ha autorizzato la validazione ed errori. La barra laterale **Saved certificates / CAs** consente di caricare, rinominare, eliminare e gestire la fiducia dei certificati e delle CA memorizzati.
+Senza argomenti si apre la GUI quando è installato l'extra `gui`;
+nell'installazione headless viene mostrato l'help della CLI. Richiedendo
+esplicitamente la GUI senza l'extra, compare un messaggio con le istruzioni
+di installazione. I comandi CLI funzionano in entrambe le installazioni. Incolla o carica il certificato/la chain nell'editor sinistro. Nell'editor destro puoi inserire una CA temporanea. Seleziona lo scopo della verifica e premi **Analyze and verify**. Dall'albero selezioni i certificati per visualizzare attributi e PEM originali. Le schede mostrano chain verificata, CA che ha autorizzato la validazione ed errori. La barra laterale **Saved certificates / CAs** consente di caricare, rinominare, eliminare e gestire la fiducia dei certificati e delle CA memorizzati.
 
 ## CLI
 
@@ -54,8 +82,8 @@ uv run ruff check .
 Su Windows:
 
 ```powershell
-uv sync --group dev
-uv run pyinstaller --noconfirm --clean certscope.spec
+uv sync --extra gui --group dev
+uv run --extra gui pyinstaller --noconfirm --clean certscope.spec
 .\dist\certscope.exe --help
 ```
 
@@ -83,7 +111,7 @@ Avvio diretto con analisi automatica tramite un solo argomento:
 .\dist\certscope.exe '-----BEGIN CERTIFICATE-----...'
 ```
 
-Sono supportati anche `uv run certscope <input>` e `uv run certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.
+Sono supportati anche `uv run --extra gui certscope <input>` e `uv run --extra gui certscope gui <input>`. La stringa PEM deve essere un singolo argomento con i ritorni a capo corretti. I comandi CLI `inspect`, `verify` e `db` restano disponibili.
 
 La barra di stato visualizza un indicatore verde/rosso per la verifica. Nell'albero della chain i certificati provenienti dal sistema e dal database usano colori distinti; le CA locali riportano il nome assegnato tra parentesi quadre. Da Settings puoi aprire la cartella del database. Entrambi gli editor PEM hanno il pulsante **Save as**. Gli elementi compositi dell'albero JSON mostrano i riepiloghi attenuati e in corsivo; stringhe, numeri, booleani e null hanno gli stessi colori dell'evidenziazione JSON.
 
