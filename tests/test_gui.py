@@ -36,6 +36,12 @@ def isolated_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "certscope.gui.default_database_path", lambda: tmp_path / "default.sqlite3"
     )
+    from certscope.storage import Storage
+
+    monkeypatch.setattr(
+        "certscope.gui.Storage",
+        lambda path=None: Storage(path or tmp_path / "default.sqlite3"),
+    )
 
 
 @pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
@@ -435,4 +441,158 @@ def test_ctrl_wheel_does_not_zoom_without_control(tmp_path, monkeypatch, qt_app)
     QApplication.sendEvent(window.cert_edit.viewport(), event)
     assert window.cert_edit.font().pointSize() == 11
     assert window.settings.get_preference("font_size_overrides", "missing") == "missing"
+    window.close()
+
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_database_sidebar_switch_and_restore(tmp_path, monkeypatch, qt_app, chain):
+    from PySide6.QtWidgets import QFileDialog
+
+    from certscope.app_settings import AppSettings
+    from certscope.gui import MainWindow
+
+    default_path = tmp_path / "default.sqlite3"
+    secondary_path = tmp_path / "secondary.sqlite3"
+    window = MainWindow()
+    window.storage.save("ca", "Default Root", chain["root"], trusted=True)
+    window.saved_panel.refresh()
+    assert window.saved_panel.table.rowCount() == 1
+    assert window.storage.path == default_path
+
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        lambda *args, **kwargs: (str(secondary_path), ""),
+    )
+    window.saved_panel.new_database_button.click()
+    assert secondary_path.is_file()
+    assert window.storage.path == secondary_path
+    assert window.saved_panel.table.rowCount() == 0
+    assert window.settings.get_preference("last_database") == str(secondary_path)
+    window.storage.save("certificate", "Secondary", chain["leaf"])
+    window.saved_panel.refresh()
+    assert window.saved_panel.table.rowCount() == 1
+
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName",
+        lambda *args, **kwargs: (str(default_path), ""),
+    )
+    window.saved_panel.open_database_button.click()
+    assert window.storage.path == default_path
+    assert window.saved_panel.table.item(0, 0).text() == "Default Root"
+    window.close()
+
+    reopened = MainWindow()
+    assert reopened.storage.path == default_path
+    assert reopened.storage.get("ca", "Default Root").trusted
+    assert AppSettings(tmp_path / "settings.yaml").get_preference(
+        "last_database"
+    ) == str(default_path)
+    reopened.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_missing_database_is_reported_and_falls_back(tmp_path, monkeypatch, qt_app):
+    from PySide6.QtWidgets import QMessageBox
+
+    from certscope.app_settings import AppSettings
+    from certscope.gui import MainWindow
+
+    missing = tmp_path / "unavailable.sqlite3"
+    AppSettings(tmp_path / "settings.yaml").set_preference(
+        "last_database", str(missing)
+    )
+    warnings = []
+    monkeypatch.setattr(
+        QMessageBox, "warning",
+        lambda *args, **kwargs: warnings.append((args, kwargs)),
+    )
+    window = MainWindow()
+    qt_app.processEvents()
+    assert window.storage.path == tmp_path / "default.sqlite3"
+    assert window.storage.path.is_file()
+    assert window.settings.get_preference("last_database") == str(window.storage.path)
+    assert warnings
+    assert str(missing) in warnings[0][0][2]
+    window.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_saved_entry_context_actions_and_raw_autosave(
+    tmp_path, monkeypatch, qt_app, chain
+):
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+    from certscope.gui import MainWindow
+    from certscope.saved_entries import RawEntryDialog
+
+    window = MainWindow()
+    window.storage.save("certificate", "Leaf", chain["leaf"])
+    window.storage.save("ca", "CA Root", chain["root"])
+    panel = window.saved_panel
+    panel.refresh()
+    assert panel.table.columnCount() == 2
+
+    certificate = window.storage.get("certificate", "Leaf")
+    panel.load_requested.emit("ca", certificate.pem_bundle)
+    assert window.ca_edit.toPlainText() == certificate.pem_bundle
+    panel.load_requested.emit("certificate", certificate.pem_bundle)
+    assert window.cert_edit.toPlainText() == certificate.pem_bundle
+
+    dialog = RawEntryDialog(
+        certificate, window.storage, window.settings,
+        window.font_family, window.font_size, window.theme, window
+    )
+    dialog.editor.setPlainText(chain["root"])
+    dialog.reject()
+    assert window.storage.get("certificate", "Leaf").pem_bundle == (
+        window.storage.get("ca", "CA Root").pem_bundle
+    )
+
+    monkeypatch.setattr(
+        QInputDialog, "getText",
+        lambda *args, **kwargs: ("Renamed Leaf", True),
+    )
+    panel.rename_entry(window.storage.get("certificate", "Leaf"))
+    assert window.storage.get("certificate", "Renamed Leaf")
+
+    root = window.storage.get("ca", "CA Root")
+    panel.toggle_trust(root)
+    assert not window.storage.get("ca", "CA Root").trusted
+    panel.toggle_trust(window.storage.get("ca", "CA Root"))
+    assert window.storage.get("ca", "CA Root").trusted
+
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+    panel.delete_entry(window.storage.get("certificate", "Renamed Leaf"))
+    assert [entry.name for entry in window.storage.list()] == ["CA Root"]
+    window.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_simple_line_edits_do_not_zoom(tmp_path, qt_app):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    from certscope.gui import MainWindow
+
+    window = MainWindow()
+    window.show()
+    qt_app.processEvents()
+    for editor in (window.url_input, window.hostname):
+        size = editor.font().pointSize()
+        editor.setFocus()
+        qt_app.processEvents()
+        event = QWheelEvent(
+            QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120),
+            Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.ScrollUpdate, False,
+        )
+        QApplication.sendEvent(editor, event)
+        assert editor.font().pointSize() == size
+    assert "tls_url" not in window.font_zoom.overrides
+    assert "hostname" not in window.font_zoom.overrides
     window.close()
