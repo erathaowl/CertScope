@@ -79,3 +79,30 @@ def test_invalid_yaml_is_ignored_without_discarding_source(tmp_path):
     settings = AppSettings(path)
     assert settings.get_preference("theme", "system") == "system"
     assert path.read_text() == "invalid: ["
+
+
+
+def test_json_settings_are_imported_to_yaml(tmp_path):
+    import json
+    import yaml
+
+    old_file = tmp_path / "settings.json"
+    new_file = tmp_path / "settings.yaml"
+    old_file.write_text(json.dumps({
+        "theme": "dark",
+        "font_size": "16",
+        "font_size_overrides": '{"certificate_pem": 18}',
+    }), encoding="utf-8")
+
+    settings = AppSettings(new_file)
+    assert settings.get_preference("theme") == "dark"
+    assert settings.get_preference("font_size_overrides") == {"certificate_pem": 18}
+    assert yaml.safe_load(new_file.read_text(encoding="utf-8")) == {
+        "font_size": "16",
+        "font_size_overrides": {"certificate_pem": 18},
+        "theme": "dark",
+    }
+    assert old_file.is_file()
+
+    settings.set_preference("theme", "light")
+    assert AppSettings(new_file).get_preference("theme") == "light"
