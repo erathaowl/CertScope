@@ -579,7 +579,14 @@ class MainWindow(QMainWindow):
         self.settings.set_preference("last_database", str(storage.path.resolve()))
         self.saved_panel.set_database(storage)
         self.report = None
+        self.certificate_data = []
         self.tree.clear()
+        for viewer in (self.details, self.path_details, self.diagnostics, self.lint_view):
+            viewer.set_data({})
+        self.raw.clear()
+        self.lint_certificate.clear()
+        self.lint_certificate.addItem("All certificates")
+        self.lint_summary.setText("Linting has not run")
         self.set_trust_indicator(None)
         self.status.setText(f"Using certificate database: {storage.path}")
         return True
