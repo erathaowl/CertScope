@@ -86,13 +86,70 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
         table.item(i, 0).text(): table.item(i, 1)
         for i in range(table.rowCount())
     }
-    assert states["Trusted Root"].text() == "Yes"
-    assert states["Untrusted Root"].text() == "No"
+    assert states["Trusted Root"].text() == "✓"
+    assert states["Untrusted Root"].text() == "✗"
     assert states["Trusted Root"].foreground().color() != (
         states["Untrusted Root"].foreground().color()
     )
     assert window.main_splitter.widget(0) is window.saved_panel
     window.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_saved_ca_context_menu_trust_untrust(tmp_path, monkeypatch, qt_app, chain):
+    from PySide6.QtWidgets import QMenu
+    from certscope.gui import MainWindow
+
+    window = MainWindow()
+    window.storage.save("ca", "Root", chain["root"], trusted=False)
+    window.storage.save("certificate", "Leaf", chain["leaf"])
+    window.saved_panel.refresh()
+    window.show()
+    qt_app.processEvents()
+    panel = window.saved_panel
+    actions_seen = []
+    desired = []
+
+    def select_action(menu, _position):
+        labels = [action.text() for action in menu.actions() if not action.isSeparator()]
+        actions_seen.append(labels)
+        return next(action for action in menu.actions() if action.text() == desired[0]) if desired else None
+
+    monkeypatch.setattr(QMenu, "exec", select_action)
+
+    def context_for(name):
+        table = panel.table
+        row = next(
+            index for index in range(table.rowCount())
+            if table.item(index, 0).text() == name
+        )
+        panel.show_context_menu(table.visualItemRect(table.item(row, 0)).center())
+        return table.item(row, 1)
+
+    desired[:] = ["Trust"]
+    item = context_for("Root")
+    assert "Trust" in actions_seen[-1]
+    assert "Untrust" not in actions_seen[-1]
+    assert window.storage.get("ca", "Root").trusted
+    assert item.text() == "✓"
+    trusted_color = item.foreground().color()
+    assert trusted_color.green() > trusted_color.red()
+
+    desired[:] = ["Untrust"]
+    item = context_for("Root")
+    assert "Untrust" in actions_seen[-1]
+    assert "Trust" not in actions_seen[-1]
+    assert not window.storage.get("ca", "Root").trusted
+    assert item.text() == "✗"
+    untrusted_color = item.foreground().color()
+    assert untrusted_color.red() > untrusted_color.green()
+
+    desired.clear()
+    context_for("Leaf")
+    assert "Trust" not in actions_seen[-1]
+    assert "Untrust" not in actions_seen[-1]
+    window.close()
+
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
