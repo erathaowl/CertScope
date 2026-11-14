@@ -528,7 +528,7 @@ def test_saved_entry_context_actions_and_raw_autosave(
 
     window = MainWindow()
     window.storage.save("certificate", "Leaf", chain["leaf"])
-    window.storage.save("ca", "CA Root", chain["root"])
+    window.storage.save("ca", "CA Root", chain["root"], trusted=True)
     panel = window.saved_panel
     panel.refresh()
     assert panel.table.columnCount() == 2
