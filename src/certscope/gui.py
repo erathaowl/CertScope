@@ -355,8 +355,8 @@ class MainWindow(QMainWindow):
                            ("Diagnostics", self.diagnostics), ("Raw PEM", self.raw)):
             self.tabs.addTab(edit, name)
 
-        lint_panel = QWidget()
-        lint_layout = QVBoxLayout(lint_panel)
+        self.lint_panel = QWidget()
+        lint_layout = QVBoxLayout(self.lint_panel)
         lint_header = QHBoxLayout()
         self.lint_summary = QLabel("Linting has not run")
         lint_header.addWidget(self.lint_summary, 1)
@@ -367,7 +367,7 @@ class MainWindow(QMainWindow):
         lint_layout.addLayout(lint_header)
         self.lint_view = JsonViewer()
         lint_layout.addWidget(self.lint_view)
-        self.tabs.addTab(lint_panel, "Lint")
+        self.tabs.addTab(self.lint_panel, "Lint")
         result_panel = QWidget()
         result_layout = QVBoxLayout(result_panel)
         result_layout.setContentsMargins(0, 0, 0, 0)
