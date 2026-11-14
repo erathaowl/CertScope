@@ -97,7 +97,6 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
 def test_saved_ca_context_menu_trust_untrust(tmp_path, monkeypatch, qt_app, chain):
-    from PySide6.QtWidgets import QMenu
     from certscope.gui import MainWindow
 
     window = MainWindow()
@@ -110,12 +109,22 @@ def test_saved_ca_context_menu_trust_untrust(tmp_path, monkeypatch, qt_app, chai
     actions_seen = []
     desired = []
 
-    def select_action(menu, _position):
-        labels = [action.text() for action in menu.actions() if not action.isSeparator()]
-        actions_seen.append(labels)
-        return next(action for action in menu.actions() if action.text() == desired[0]) if desired else None
+    class FakeMenu:
+        def __init__(self, *_):
+            self.actions = []
 
-    monkeypatch.setattr(QMenu, "exec", select_action)
+        def addAction(self, text):
+            self.actions.append(text)
+            return text
+
+        def addSeparator(self):
+            pass
+
+        def exec(self, _position):
+            actions_seen.append(self.actions.copy())
+            return desired[0] if desired else None
+
+    monkeypatch.setattr("certscope.saved_entries.QMenu", FakeMenu)
 
     def context_for(name):
         table = panel.table
