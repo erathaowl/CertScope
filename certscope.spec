@@ -8,15 +8,20 @@ block_cipher = None
 assets = [(str(Path('assets/certscope.png').resolve()), 'assets')]
 assets += [(str(file), 'certscope/assets') for file in Path('src/certscope/assets').glob('*') if file.is_file()]
 assets += copy_metadata('certscope')
-pkilint_datas, pkilint_binaries, pkilint_hiddenimports = collect_all('pkilint')
-fasder_datas, fasder_binaries, fasder_hiddenimports = collect_all('pyasn1_fasder')
-assets += pkilint_datas + fasder_datas
+extra_binaries = []
+extra_hiddenimports = []
+for package in ('pkilint', 'pyasn1_fasder', 'iso4217', 'iso3166', 'iso639',
+                'publicsuffixlist'):
+    data, binaries, hiddenimports = collect_all(package)
+    assets += data
+    extra_binaries += binaries
+    extra_hiddenimports += hiddenimports
 a = Analysis(
     ['launcher.py'],
     pathex=['src'],
-    binaries=pkilint_binaries + fasder_binaries,
+    binaries=extra_binaries,
     datas=assets,
-    hiddenimports=pkilint_hiddenimports + fasder_hiddenimports,
+    hiddenimports=extra_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
