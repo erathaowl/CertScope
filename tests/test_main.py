@@ -5,6 +5,8 @@ import tomllib
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 from certscope.main import main
 
 
@@ -42,7 +44,9 @@ def test_cli_does_not_inspect_gui_dependencies(monkeypatch, capsys):
         raise AssertionError(f"Unexpected GUI dependency check: {name}")
 
     monkeypatch.setattr("certscope.main.find_spec", unexpected_gui_probe)
-    assert main(["--version"]) == 0
+    with pytest.raises(SystemExit) as result:
+        main(["--version"])
+    assert result.value.code == 0
     assert "CertScope" in capsys.readouterr().out
 
 
