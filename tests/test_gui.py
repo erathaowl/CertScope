@@ -25,17 +25,30 @@ def qt_app():
     app.quit()
 
 
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch):
+    """Avoid touching the real application settings and default database."""
+    from certscope.app_settings import AppSettings
+
+    monkeypatch.setattr(
+        "certscope.gui.AppSettings", lambda: AppSettings(tmp_path / "settings.yaml")
+    )
+    monkeypatch.setattr(
+        "certscope.gui.default_database_path", lambda: tmp_path / "default.sqlite3"
+    )
+
+
 @pytest.mark.skipif(sys.platform.startswith('linux'), reason='Qt offscreen teardown is unstable in CI')
 def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
     pytest.importorskip("PySide6")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from certscope.gui import AboutDialog, EntriesDialog, MainWindow
+    from certscope.gui import AboutDialog, MainWindow
     from certscope import __version__
     from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
     from certscope.storage import Storage
 
     path = tmp_path / "gui.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     assert qt_app is not None
     window = MainWindow()
     assert window.cert_edit is not None
@@ -57,17 +70,22 @@ def test_gui_window_can_be_constructed(tmp_path, monkeypatch, qt_app, chain):
     storage = Storage(path)
     storage.save("ca", "Trusted Root", chain["root"], trusted=True)
     storage.save("ca", "Untrusted Root", chain["root"], trusted=False)
-    entries = EntriesDialog(storage, window)
+    window.saved_panel.refresh()
+    table = window.saved_panel.table
+    assert table.columnCount() == 2
+    assert [table.horizontalHeaderItem(i).text() for i in range(2)] == [
+        "Name", "Trusted"
+    ]
     states = {
-        entries.table.item(i, 1).text(): entries.table.item(i, 2)
-        for i in range(entries.table.rowCount())
+        table.item(i, 0).text(): table.item(i, 1)
+        for i in range(table.rowCount())
     }
-    assert states["Trusted Root"].text() == "✓"
-    assert states["Untrusted Root"].text() == "✗"
+    assert states["Trusted Root"].text() == "Yes"
+    assert states["Untrusted Root"].text() == "No"
     assert states["Trusted Root"].foreground().color() != (
         states["Untrusted Root"].foreground().color()
     )
-    entries.close()
+    assert window.main_splitter.widget(0) is window.saved_panel
     window.close()
 
 
@@ -80,7 +98,7 @@ def test_editor_buttons_use_editor_not_clicked_state(tmp_path, monkeypatch, edit
     from certscope.gui import MainWindow
     from certscope.storage import Storage
 
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(tmp_path / "gui.sqlite3"))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or tmp_path / "gui.sqlite3"))
     assert qt_app is not None
     window = MainWindow()
     editor = getattr(window, editor_name)
@@ -113,7 +131,7 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     from certscope.storage import Storage
 
     path = tmp_path / "gui.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     assert qt_app is not None
     window = MainWindow()
     window.details.set_data({"subject": "example", "extensions": [1, 2]})
@@ -136,8 +154,8 @@ def test_result_view_modes_and_settings_persist(tmp_path, monkeypatch, qt_app):
     assert '"subject": "CN=Leaf"' in window.details.code.toPlainText()
     window.view_mode.setCurrentText("Tree")
     assert window.details.tree.topLevelItemCount() == 1
-    window.storage.set_preference("theme", "dark")
-    window.storage.set_preference("font_size", "13")
+    window.settings.set_preference("theme", "dark")
+    window.settings.set_preference("font_size", "13")
     window.close()
     another = MainWindow()
     assert another.theme == "dark"
@@ -180,10 +198,10 @@ def test_result_view_preference_restored(tmp_path, monkeypatch, qt_app):
     from certscope.storage import Storage
 
     path = tmp_path / "prefs.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     first = MainWindow()
     first.view_mode.setCurrentText("JSON")
-    assert first.storage.get_preference("result_view") == "JSON"
+    assert first.settings.get_preference("result_view") == "JSON"
     first.close()
 
     second = MainWindow()
@@ -191,7 +209,7 @@ def test_result_view_preference_restored(tmp_path, monkeypatch, qt_app):
     assert second.details.stack.currentIndex() == 1
     second.view_mode.setCurrentText("Tree")
     second.close()
-    assert Storage(path).get_preference("result_view") == "Tree"
+    assert second.settings.get_preference("result_view") == "Tree"
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
@@ -200,12 +218,12 @@ def test_lint_panel_and_profile_selection(tmp_path, monkeypatch, qt_app):
     from certscope.storage import Storage
 
     path = tmp_path / "lint.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     window = MainWindow()
     assert window.lint_profile.currentData() == "rfc5280"
     assert window.tabs.tabText(window.tabs.indexOf(window.lint_panel)) == "Lint"
     window.lint_profile.setCurrentIndex(1)
-    assert Storage(path).get_preference("lint_profile") == "cabf-tls"
+    assert window.settings.get_preference("lint_profile") == "cabf-tls"
 
     window.report = {
         "lint": {
@@ -240,7 +258,7 @@ def test_ctrl_wheel_zoom_is_independent_and_persistent(tmp_path, monkeypatch, qt
     from certscope.storage import Storage
 
     path = tmp_path / "font_zoom.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     window = MainWindow()
     window.show()
     qt_app.processEvents()
@@ -286,19 +304,15 @@ def test_ctrl_wheel_zoom_is_independent_and_persistent(tmp_path, monkeypatch, qt
     assert window.details.code.font().pointSize() == 10
     assert window.details.tree.font().pointSize() == 12
 
-    zoom(window.url_input, 1)
-    assert window.url_input.font().pointSize() == 12
-    assert window.hostname.font().pointSize() == 11
+    assert "tls_url" not in window.font_zoom._widgets
+    assert "hostname" not in window.font_zoom._widgets
 
-    saved = Storage(path).get_preference("font_size_overrides")
-    import json
-    assert json.loads(saved) == {
+    assert window.settings.get_preference("font_size_overrides") == {
         "certificate_pem": 13,
         "ca_pem": 10,
         "certificates_tree": 12,
         "details_tree": 12,
         "details_json": 10,
-        "tls_url": 12,
     }
     window.close()
 
@@ -308,29 +322,28 @@ def test_ctrl_wheel_zoom_is_independent_and_persistent(tmp_path, monkeypatch, qt
     assert restored.tree.font().pointSize() == 12
     assert restored.details.tree.font().pointSize() == 12
     assert restored.details.code.font().pointSize() == 10
-    assert restored.url_input.font().pointSize() == 12
     assert restored.diagnostics.tree.font().pointSize() == 11
     restored.close()
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
 def test_settings_reset_clears_all_font_overrides(tmp_path, monkeypatch, qt_app):
-    import json
-
     from PySide6.QtWidgets import QDialog
     from certscope.gui import MainWindow
     from certscope.preferences import SettingsDialog
     from certscope.storage import Storage
 
     path = tmp_path / "font_settings.sqlite3"
-    storage = Storage(path)
-    storage.set_preference("font_size_overrides", json.dumps({
+    from certscope.app_settings import AppSettings
+
+    settings = AppSettings(tmp_path / "settings.yaml")
+    settings.set_preference("font_size_overrides", {
         "certificate_pem": 19,
         "details_tree": 8,
         "details_json": 28,
         "saved_entries_table": 25,
-    }))
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    })
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     window = MainWindow()
     assert window.cert_edit.font().pointSize() == 19
     assert window.details.tree.font().pointSize() == 8
@@ -350,14 +363,13 @@ def test_settings_reset_clears_all_font_overrides(tmp_path, monkeypatch, qt_app)
     monkeypatch.setattr(SettingsDialog, "exec", accept_reset)
     window.open_settings()
     assert window.font_size == 15
-    assert storage.get_preference("font_size") == "15"
-    assert storage.get_preference("font_size_overrides", "missing") == "missing"
+    assert window.settings.get_preference("font_size") == "15"
+    assert window.settings.get_preference("font_size_overrides", "missing") == "missing"
     assert window.cert_edit.font().pointSize() == 15
     assert window.ca_edit.font().pointSize() == 15
     assert window.details.tree.font().pointSize() == 15
     assert window.details.code.font().pointSize() == 15
     assert window.tree.font().pointSize() == 15
-    assert window.url_input.font().pointSize() == 15
     window.close()
     reopened = MainWindow()
     assert reopened.cert_edit.font().pointSize() == 15
@@ -366,43 +378,39 @@ def test_settings_reset_clears_all_font_overrides(tmp_path, monkeypatch, qt_app)
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
-def test_entries_dialog_font_zoom_persists(tmp_path, monkeypatch, qt_app):
-    import json
-
+def test_saved_sidebar_font_zoom_persists(tmp_path, monkeypatch, qt_app):
     from PySide6.QtCore import QPoint, QPointF, Qt
     from PySide6.QtGui import QWheelEvent
     from PySide6.QtWidgets import QApplication
 
-    from certscope.gui import EntriesDialog, MainWindow
+    from certscope.gui import MainWindow
     from certscope.storage import Storage
 
     path = tmp_path / "entries_font.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     window = MainWindow()
-    dialog = EntriesDialog(window.storage, window)
-    dialog.show()
+    window.show()
     qt_app.processEvents()
 
-    dialog.table.setFocus()
+    table = window.saved_panel.table
+    table.setFocus()
     qt_app.processEvents()
-    assert dialog.table.hasFocus()
+    assert table.hasFocus()
     event = QWheelEvent(
         QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120),
         Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier,
         Qt.ScrollPhase.ScrollUpdate, False,
     )
-    QApplication.sendEvent(dialog.table.viewport(), event)
-    assert dialog.table.font().pointSize() == 12
-    assert dialog.search.font().pointSize() == 11
-    assert json.loads(Storage(path).get_preference("font_size_overrides"))[
+    QApplication.sendEvent(table.viewport(), event)
+    assert table.font().pointSize() == 12
+    assert window.settings.get_preference("font_size_overrides")[
         "saved_entries_table"
     ] == 12
-    dialog.close()
-    second = EntriesDialog(window.storage, window)
-    assert second.table.font().pointSize() == 12
-    second.close()
     window.close()
 
+    second = MainWindow()
+    assert second.saved_panel.table.font().pointSize() == 12
+    second.close()
 
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
 def test_ctrl_wheel_does_not_zoom_without_control(tmp_path, monkeypatch, qt_app):
@@ -414,7 +422,7 @@ def test_ctrl_wheel_does_not_zoom_without_control(tmp_path, monkeypatch, qt_app)
     from certscope.storage import Storage
 
     path = tmp_path / "wheel_normal.sqlite3"
-    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    monkeypatch.setattr("certscope.gui.Storage", lambda db=None: Storage(db or path))
     window = MainWindow()
     window.show()
     window.cert_edit.setFocus()
@@ -426,5 +434,5 @@ def test_ctrl_wheel_does_not_zoom_without_control(tmp_path, monkeypatch, qt_app)
     )
     QApplication.sendEvent(window.cert_edit.viewport(), event)
     assert window.cert_edit.font().pointSize() == 11
-    assert Storage(path).get_preference("font_size_overrides", "missing") == "missing"
+    assert window.settings.get_preference("font_size_overrides", "missing") == "missing"
     window.close()
