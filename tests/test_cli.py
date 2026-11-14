@@ -52,3 +52,29 @@ def test_cli_version_and_help(tmp_path):
     assert f"{APP_NAME} - {__version__} ({APP_LICENSE})" in help_result.stdout
     assert APP_URL in help_result.stdout
     assert re.search(r"--version\s+", help_result.stdout)
+
+
+def test_cli_lint_json_and_text(tmp_path, chain):
+    from certscope.parser import parse_bundle
+
+    pem = tmp_path / "chain.pem"
+    root = tmp_path / "root.pem"
+    pem.write_text(chain["chain"], encoding="ascii")
+    root.write_text(chain["root"], encoding="ascii")
+
+    result = invoke(tmp_path, "inspect", "--cert", str(pem), "--lint", "--format", "json")
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["lint"]["profile"] == "rfc5280"
+    assert len(report["lint"]["certificates"]) == len(parse_bundle(chain["chain"]))
+
+    result = invoke(tmp_path, "verify", "--cert", str(pem), "--ca", str(root),
+                    "--lint-profile", "cabf-tls", "--format", "json")
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["status"] == "trusted"
+    assert report["lint"]["profile"] == "cabf-tls"
+
+    text = invoke(tmp_path, "inspect", "--cert", str(pem), "--lint")
+    assert text.returncode == 0
+    assert "Lint (rfc5280):" in text.stdout

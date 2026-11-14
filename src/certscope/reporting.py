@@ -22,6 +22,22 @@ def render(result: dict, fmt: str = "text") -> str:
                           f"Trust anchor SHA256: {anchor['fingerprint_sha256']}"))
         if result["identity_and_purpose"]["status"] == "failed":
             lines.append(f"Identity/purpose error: {result['identity_and_purpose']['message']}")
+    lint = result.get("lint")
+    if lint is not None:
+        summary = lint["summary"]
+        counts = ", ".join(
+            f"{severity}: {summary[severity]}" for severity in ("FATAL", "ERROR", "WARNING")
+        )
+        lines.append(f"Lint ({lint['profile']}): {lint['status']} ({counts})")
+        for cert in lint["certificates"]:
+            for finding in cert["findings"]:
+                if finding["severity"] in ("FATAL", "ERROR", "WARNING"):
+                    lines.append(
+                        f"  {cert['subject']}: [{finding['severity']}] {finding['code']}"
+                        + (f" - {finding['message']}" if finding["message"] else "")
+                    )
+            if "error" in cert:
+                lines.append(f"  {cert['subject']}: lint error - {cert['error']}")
     for n, cert in enumerate(result.get("certificates", []), 1):
         lines.extend(("", f"Certificate {n}: {cert['subject']}", f"  Issuer: {cert['issuer']}",
                       f"  SHA256: {cert['fingerprint_sha256']}",

@@ -92,3 +92,13 @@ La barra di stato visualizza un indicatore verde/rosso per la verifica. Nell'alb
 Il repository ha tre workflow: [Test and build](.github/workflows/build.yml), [Release](.github/workflows/release.yml) e [Vendor pinned editor font](.github/workflows/vendor-font.yml). Per pubblicare una nuova versione, crea e invia un tag `vX.Y.Z`, ad esempio `git tag v1.3.0 && git push origin v1.3.0`. Il workflow riutilizza i test Linux/Windows e genera entrambi gli EXE; al termine pubblica una release con EXE GUI, EXE CLI, ZIP del sorgente esatto al tag e wheel Python con la versione corrispondente. È possibile avviarlo anche manualmente da GitHub Actions indicando un tag già esistente. Le release 1.0, 1.1 e 1.2 rimangono inalterate.
 
 La CLI supporta `--version` e mostra nome e versione. L'output di `--help` include `CertScope - <version> (MIT)` e l'URL del repository GitHub. Gli eseguibili hanno nomi minuscoli (`certscope.exe`, `certscope-cli.exe`), mentre gli asset delle release sono `certscope-windows.zip` e `certscope-cli-windows.zip`, ciascuno contenente il relativo EXE. Anche le release precedenti vengono riconfezionate preservando i binari originali.
+
+## Linting X.509 con PKILint
+
+CertScope integra [DigiCert PKILint](https://github.com/digicert/pkilint) per controlli di conformità offline, distinti dalla verifica di attendibilità della chain. La GUI esegue automaticamente il linting dopo **Analyze and verify**: la scheda **Lint** mostra i conteggi per severità e permette di selezionare un certificato alla volta.
+
+Il profilo predefinito è **RFC 5280**, adatto anche alle CA private. Il profilo facoltativo **CA/B Forum TLS** riguarda i certificati destinati alla Web PKI pubblica; i certificati interni possono quindi generare segnalazioni non pertinenti. PKILint rileva automaticamente il tipo di certificato, che potrebbe richiedere una verifica manuale.
+
+Nella CLI usa `--lint` per RFC 5280 oppure `--lint-profile cabf-tls` per i controlli CA/B Forum, con `inspect` o `verify`. Il report JSON include l'oggetto `lint` con risultati per certificato, severità, codice, campo ASN.1 e messaggio. Il linting non modifica l'esito della validazione TLS né i codici di uscita. La libreria usa il DER originale, quando disponibile, senza richieste di rete.
+
+Il codice del progetto è distribuito con [licenza MIT](LICENSE).

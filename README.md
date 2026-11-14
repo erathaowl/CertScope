@@ -67,7 +67,7 @@ A Windows GitHub Actions workflow builds and uploads the EXE artifact. The workf
 
 ## License and redistribution
 
-MIT licensed project code. Packaged PySide6/Qt and other dependencies retain their respective licenses and redistribution requirements. Review the bundled Qt license notices before distributing binaries.
+Licensed under the [MIT License](LICENSE). Packaged PySide6/Qt and other dependencies retain their respective licenses and redistribution requirements. Review the bundled Qt license notices before distributing binaries.
 
 ## Appearance
 
@@ -102,3 +102,19 @@ The project maintains three workflows: [Test and build](.github/workflows/build.
 To publish a new version, push its tag (for example, `git tag v1.3.0 && git push origin v1.3.0`). Alternatively, run **Actions → Release → Run workflow** with an existing `vX.Y.Z` tag. The release is published only after tests, lint, and the Windows EXE build pass. Re-running for an already published tag leaves its assets untouched.
 
 The CLI supports `--version` to print `CertScope <current version>`. Its `--help` output includes `CertScope - <version> (MIT)` and the GitHub repository URL. The Windows EXE filenames and release ZIP filenames use lowercase. Historical release assets have also been repackaged without changing the original executable bytes.
+
+## Certificate linting (PKILint)
+
+CertScope uses [DigiCert PKILint](https://github.com/digicert/pkilint) for offline certificate compliance checks. **Lint results are independent from trust-chain verification**: a trusted certificate may still violate RFC/policy requirements. The GUI lints all provided certificates when you select **Analyze and verify** and displays findings in the **Lint** tab, with a per-certificate selector and severity counts. The selected profile is remembered.
+
+- **RFC 5280** is the default and is suitable for private PKIs.
+- **CA/B Forum TLS** applies the TLS Baseline Requirements for public Web PKI certificates. PKILint detects the certificate type automatically; the detected type may need manual interpretation.
+
+For CLI certificate inspection or verification, use `--lint` for RFC 5280 or `--lint-profile cabf-tls` for CA/B Forum TLS:
+
+```bash
+uv run certscope inspect --cert chain.pem --lint --format json
+uv run certscope verify --cert chain.pem --ca root.pem --lint-profile cabf-tls --format json
+```
+
+The JSON report contains a separate `lint` object with the profile, status, per-certificate SHA-256 fingerprints, findings (severity, code, validator, ASN.1 path and message), and severity counts. Text output prints the summary and actionable findings. Lint failures do not change verification exit codes or certificate trust status. CertScope passes original DER bytes when available, preserving ASN.1 encoding details; it does not contact network services.

@@ -192,3 +192,39 @@ def test_result_view_preference_restored(tmp_path, monkeypatch, qt_app):
     second.view_mode.setCurrentText("Tree")
     second.close()
     assert Storage(path).get_preference("result_view") == "Tree"
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_lint_panel_and_profile_selection(tmp_path, monkeypatch, qt_app):
+    from certscope.gui import MainWindow
+    from certscope.storage import Storage
+
+    path = tmp_path / "lint.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    window = MainWindow()
+    assert window.lint_profile.currentData() == "rfc5280"
+    assert window.tabs.tabText(window.tabs.indexOf(window.lint_panel)) == "Lint"
+    window.lint_profile.setCurrentIndex(1)
+    assert Storage(path).get_preference("lint_profile") == "cabf-tls"
+
+    window.report = {
+        "lint": {
+            "profile": "cabf-tls",
+            "status": "findings",
+            "summary": {"FATAL": 0, "ERROR": 1, "WARNING": 0, "NOTICE": 0, "INFO": 0},
+            "certificates": [
+                {"subject": "CN=test", "status": "findings",
+                 "findings": [{"severity": "ERROR", "code": "test.finding"}]},
+            ],
+        }
+    }
+    window.show_lint_report()
+    assert window.lint_certificate.count() == 2
+    assert "1 errors" in window.lint_summary.text()
+    window.lint_certificate.setCurrentIndex(1)
+    assert window.lint_view.tree.topLevelItemCount() == 1
+    window.close()
+
+    again = MainWindow()
+    assert again.lint_profile.currentData() == "cabf-tls"
+    again.close()

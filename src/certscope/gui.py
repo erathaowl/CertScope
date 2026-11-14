@@ -17,6 +17,7 @@ from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input
+from certscope.linting import lint_bundle
 from certscope.remote import fetch_certificate, parse_tls_target
 from certscope.preferences import SettingsDialog, apply_theme, is_dark, register_font
 from certscope.parser import leaf_candidates, parse_bundle
@@ -106,15 +107,17 @@ class AnalysisWorker(QThread):
     failed = Signal(str)
 
     def __init__(self, pem: str, ca: str, storage: Storage, purpose: str,
-                 hostname: str | None, fingerprint: str):
+                 hostname: str | None, fingerprint: str, lint_profile: str):
         super().__init__()
         self.pem, self.ca, self.storage = pem, ca, storage
         self.purpose, self.hostname, self.fingerprint = purpose, hostname, fingerprint
+        self.lint_profile = lint_profile
 
     def run(self):
         try:
             result = verify_bundle(self.pem, self.storage, self.ca, self.purpose,
                                    self.hostname, self.fingerprint)
+            result["lint"] = lint_bundle(parse_bundle(self.pem), self.lint_profile)
             self.completed.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -318,6 +321,21 @@ class MainWindow(QMainWindow):
         self.hostname = QLineEdit()
         self.hostname.setPlaceholderText("Required for TLS server")
         controls.addWidget(self.hostname, 1)
+        controls.addWidget(QLabel("Lint profile"))
+        self.lint_profile = QComboBox()
+        self.lint_profile.addItem("RFC 5280", "rfc5280")
+        self.lint_profile.addItem("CA/B Forum TLS", "cabf-tls")
+        self.lint_profile.setToolTip(
+            "CA/B Forum TLS requirements apply to publicly trusted TLS certificates"
+        )
+        saved_lint_profile = self.storage.get_preference("lint_profile", "rfc5280")
+        self.lint_profile.setCurrentIndex(1 if saved_lint_profile == "cabf-tls" else 0)
+        self.lint_profile.currentIndexChanged.connect(
+            lambda _: self.storage.set_preference(
+                "lint_profile", self.lint_profile.currentData()
+            )
+        )
+        controls.addWidget(self.lint_profile)
         self.analyze_btn = QPushButton("Analyze and verify")
         self.analyze_btn.clicked.connect(self.analyze)
         controls.addWidget(self.analyze_btn)
@@ -336,6 +354,20 @@ class MainWindow(QMainWindow):
         for name, edit in (("Details", self.details), ("Verified path", self.path_details),
                            ("Diagnostics", self.diagnostics), ("Raw PEM", self.raw)):
             self.tabs.addTab(edit, name)
+
+        lint_panel = QWidget()
+        lint_layout = QVBoxLayout(lint_panel)
+        lint_header = QHBoxLayout()
+        self.lint_summary = QLabel("Linting has not run")
+        lint_header.addWidget(self.lint_summary, 1)
+        self.lint_certificate = QComboBox()
+        self.lint_certificate.addItem("All certificates")
+        self.lint_certificate.currentIndexChanged.connect(self.show_lint_details)
+        lint_header.addWidget(self.lint_certificate)
+        lint_layout.addLayout(lint_header)
+        self.lint_view = JsonViewer()
+        lint_layout.addWidget(self.lint_view)
+        self.tabs.addTab(lint_panel, "Lint")
         result_panel = QWidget()
         result_layout = QVBoxLayout(result_panel)
         result_layout.setContentsMargins(0, 0, 0, 0)
@@ -409,7 +441,7 @@ class MainWindow(QMainWindow):
         dark = is_dark(self.theme)
         for editor in (self.cert_edit, self.ca_edit, self.raw):
             editor.configure(self.font_family, self.font_size, dark)
-        for viewer in (self.details, self.path_details, self.diagnostics):
+        for viewer in (self.details, self.path_details, self.diagnostics, self.lint_view):
             viewer.configure(self.font_family, self.font_size, dark)
         self.tree.setFont(self.cert_edit.font())
         self.style_certificate_tree()
@@ -452,7 +484,7 @@ class MainWindow(QMainWindow):
                 item.setToolTip(0, f"Certificate from the local database: {cert.get('saved_name', '')}")
 
     def set_result_mode(self, mode, save=True):
-        for viewer in (self.details, self.path_details, self.diagnostics):
+        for viewer in (self.details, self.path_details, self.diagnostics, self.lint_view):
             viewer.set_mode(mode)
         if save:
             self.storage.set_preference("result_view", mode)
@@ -571,10 +603,11 @@ class MainWindow(QMainWindow):
             self.status.setText(f"Invalid certificate input: {exc}")
             self.diagnostics.set_data({"error": str(exc)})
             return
-        self.status.setText("Analyzing certificates and verifying trust...")
+        self.status.setText("Analyzing certificates, verifying trust and linting...")
         self.analyze_btn.setEnabled(False)
         self.worker = AnalysisWorker(pem, self.ca_edit.toPlainText(), self.storage,
-                                     purpose, hostname, fingerprint)
+                                     purpose, hostname, fingerprint,
+                                     self.lint_profile.currentData())
         self.worker.completed.connect(self.show_report)
         self.worker.failed.connect(self.show_error)
         self.worker.finished.connect(lambda: self.analyze_btn.setEnabled(True))
@@ -584,11 +617,41 @@ class MainWindow(QMainWindow):
         self.report = None
         self.set_trust_indicator(None)
         self.status.setText(f"Analysis failed: {message}")
+        self.lint_summary.setText("Linting has not run")
+        self.lint_view.set_data({})
         self.diagnostics.set_data({"error": message})
         self.tabs.setCurrentWidget(self.diagnostics)
 
+    def show_lint_details(self, *_):
+        lint = (self.report or {}).get("lint")
+        if lint is None:
+            self.lint_view.set_data({"status": "not_run"})
+            return
+        index = self.lint_certificate.currentIndex()
+        self.lint_view.set_data(lint if index <= 0 else lint["certificates"][index - 1])
+
+    def show_lint_report(self):
+        lint = (self.report or {}).get("lint")
+        self.lint_certificate.blockSignals(True)
+        self.lint_certificate.clear()
+        self.lint_certificate.addItem("All certificates")
+        if lint:
+            for certificate in lint["certificates"]:
+                self.lint_certificate.addItem(certificate["subject"])
+            summary = lint["summary"]
+            self.lint_summary.setText(
+                f"{lint['profile']} | {lint['status']} | "
+                f"{summary['FATAL']} fatal, {summary['ERROR']} errors, "
+                f"{summary['WARNING']} warnings"
+            )
+        else:
+            self.lint_summary.setText("Linting has not run")
+        self.lint_certificate.blockSignals(False)
+        self.show_lint_details()
+
     def show_report(self, report):
         self.report = report
+        self.show_lint_report()
         self.set_trust_indicator(report["status"] == "trusted")
         self.certificate_data = report["certificates"]
         self.tree.clear()

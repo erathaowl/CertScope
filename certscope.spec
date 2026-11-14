@@ -1,19 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 
 block_cipher = None
 assets = [(str(Path('assets/certscope.png').resolve()), 'assets')]
 assets += [(str(file), 'certscope/assets') for file in Path('src/certscope/assets').glob('*') if file.is_file()]
 assets += copy_metadata('certscope')
+pkilint_datas, pkilint_binaries, pkilint_hiddenimports = collect_all('pkilint')
+assets += pkilint_datas
 a = Analysis(
     ['launcher.py'],
     pathex=['src'],
-    binaries=[],
+    binaries=pkilint_binaries,
     datas=assets,
-    hiddenimports=[],
+    hiddenimports=pkilint_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

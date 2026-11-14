@@ -1,5 +1,6 @@
 """Bounded parsing of PEM certificate bundles."""
 
+import base64
 import hashlib
 import re
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ class Certificate:
     value: x509.Certificate
     pem: str
     position: int
+    raw_der: bytes | None = None
 
     @property
     def fingerprint(self) -> str:
@@ -44,7 +46,7 @@ def parse_bundle(data: str | bytes, *, allow_der: bool = False) -> list[Certific
         try:
             cert = x509.load_der_x509_certificate(raw)
             pem = cert.public_bytes(serialization.Encoding.PEM).decode("ascii")
-            return [Certificate(cert, pem, 1)]
+            return [Certificate(cert, pem, 1, raw)]
         except ValueError as exc:
             raise InputError("Input is not a valid DER certificate") from exc
 
@@ -68,9 +70,12 @@ def parse_bundle(data: str | bytes, *, allow_der: bool = False) -> list[Certific
             cert = x509.load_pem_x509_certificate(block)
         except ValueError as exc:
             raise InputError(f"Invalid PEM certificate at byte {match.start()}: {exc}") from exc
+        der = base64.b64decode(re.sub(
+            rb"\s+", b"", block[len(b"-----BEGIN CERTIFICATE-----"):-len(end)]
+        ), validate=True)
         certificates.append(Certificate(
             cert, cert.public_bytes(serialization.Encoding.PEM).decode("ascii"),
-            raw.count(b"\n", 0, match.start()) + 1,
+            raw.count(b"\n", 0, match.start()) + 1, der,
         ))
         if len(certificates) > MAX_CERTIFICATES:
             raise InputError(f"Too many certificates (limit {MAX_CERTIFICATES})")

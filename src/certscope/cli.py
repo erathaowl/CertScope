@@ -8,6 +8,7 @@ from pathlib import Path
 from certscope import __version__
 from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.inspector import inspect_certificate
+from certscope.linting import lint_bundle
 from certscope.parser import InputError, leaf_candidates, parse_bundle
 from certscope.reporting import render
 from certscope.storage import Storage
@@ -40,6 +41,9 @@ def parser() -> argparse.ArgumentParser:
         inputs.add_argument("--cert", metavar="FILE", help="PEM/DER certificate, chain, or - for stdin")
         inputs.add_argument("--entry", metavar="NAME", help="Saved certificate name")
         sub.add_argument("--format", choices=("text", "json"), default="text")
+        sub.add_argument("--lint", action="store_true", help="Run RFC 5280 compliance linting")
+        sub.add_argument("--lint-profile", choices=("rfc5280", "cabf-tls"),
+                         help="Lint profile (also enables linting)")
         if operation == "verify":
             sub.add_argument("--ca", metavar="FILE", help="Temporary custom CA bundle or - for stdin")
             sub.add_argument("--purpose", choices=("generic", "tls-server", "tls-client"), default="generic")
@@ -129,10 +133,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "inspect":
             result = {"status": "inspected", "certificates": [inspect_certificate(c) for c in certs],
                       "leaf_candidates": [c.fingerprint for c in leaf_candidates(certs)]}
+            if args.lint or args.lint_profile:
+                result["lint"] = lint_bundle(certs, args.lint_profile or "rfc5280")
             print(render(result, args.format))
             return 0
         ca = _read(args.ca) if args.ca else None
         result = verify_bundle(pem, storage, ca, args.purpose, args.hostname, args.leaf)
+        if args.lint or args.lint_profile:
+            result["lint"] = lint_bundle(parse_bundle(pem), args.lint_profile or "rfc5280")
         print(render(result, args.format))
         return 0 if result["status"] == "trusted" else (3 if result["status"] == "unavailable" else 1)
     except (InputError, ValueError, KeyError, UnicodeError) as exc:
