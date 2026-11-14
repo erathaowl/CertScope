@@ -7,7 +7,7 @@ import pytest
 
 from certscope import __version__
 from certscope.app_info import APP_AUTHOR, APP_LICENSE, APP_NAME, APP_URL
-from scripts.build_nuitka import build_options, project_version
+from certscope.nuitka_build import build_options, project_version
 
 
 def test_version_and_identity():

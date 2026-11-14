@@ -8,7 +8,7 @@ if ($env:CERTSCOPE_VERSION) {
 uv sync --group dev
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-uv run python scripts/build_nuitka.py
+uv run python -m certscope.nuitka_build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & '.\dist\certscope-cli.exe' --help
