@@ -54,7 +54,7 @@ jobs:
     if: needs.validate.outputs.should_build == 'true'
     uses: ./.github/workflows/build.yml
     with:
-      source_ref: ${{ github.ref == 'refs/heads/main' && '' || needs.validate.outputs.tag }}
+      source_ref: ${{ github.ref == 'refs/heads/main' && github.sha || needs.validate.outputs.tag }}
     permissions:
       contents: read
 
