@@ -1,6 +1,8 @@
 """Input classification and server certificate retrieval tests."""
 
 import ssl
+import sys
+from types import ModuleType
 
 import pytest
 
@@ -91,10 +93,10 @@ def test_entrypoint_routes_single_input_to_gui(monkeypatch):
     from certscope.main import main
 
     received = []
-    from certscope import gui
-
-    monkeypatch.setattr(gui, "run",
-                        lambda initial_input=None: received.append(initial_input) or 0)
+    gui = ModuleType("certscope.gui")
+    gui.run = lambda initial_input=None: received.append(initial_input) or 0
+    monkeypatch.setitem(sys.modules, "certscope.gui", gui)
+    monkeypatch.setattr("certscope.main.find_spec", lambda name: object())
     assert main(["server.pem"]) == 0
     assert main(["https://example.com:443"]) == 0
     assert main(["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----"]) == 0
