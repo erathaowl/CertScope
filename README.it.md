@@ -102,3 +102,10 @@ Il profilo predefinito è **RFC 5280**, adatto anche alle CA private. Il profilo
 Nella CLI usa `--lint` per RFC 5280 oppure `--lint-profile cabf-tls` per i controlli CA/B Forum, con `inspect` o `verify`. Il report JSON include l'oggetto `lint` con risultati per certificato, severità, codice, campo ASN.1 e messaggio. Il linting non modifica l'esito della validazione TLS né i codici di uscita. La libreria usa il DER originale, quando disponibile, senza richieste di rete.
 
 Il codice del progetto è distribuito con [licenza MIT](LICENSE).
+
+
+## Dimensioni carattere per singola vista
+
+Tieni premuto **Ctrl** mentre usi la rotellina del mouse su un editor PEM/JSON, su una treeview dei risultati o certificati, su un campo URL/hostname oppure nella finestra delle voci salvate per cambiare la dimensione del carattere della singola vista con focus. Il valore è compreso fra 8 e 32 pt ed è salvato nelle preferenze SQLite locali. Lo scorrimento ordinario rimane invariato.
+
+In **Settings → Font size (pt)** si configura la dimensione predefinita. Il pulsante **Reset**, accanto al valore, elimina tutte le dimensioni personalizzate e applica a tutte le viste il valore selezionato, quando confermi con **OK**. **Cancel** non modifica le preferenze. Tema e famiglia di font restano indipendenti dalle dimensioni personalizzate.

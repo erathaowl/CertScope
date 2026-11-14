@@ -127,3 +127,10 @@ optional certificate file, PEM string or TLS URL. `certscope-cli.exe` includes
 only the headless inspection, verification, PKILint and database modules, without Qt.
 Both binaries remain single-file EXEs with the existing Windows icon and version metadata.
 The CI build publishes size comparisons against the unchanged v1.3.0 release.
+
+
+## Per-view font zoom
+
+Hold **Ctrl** and scroll the mouse wheel over a focused PEM/JSON editor, report tree, certificate tree, URL/hostname field, or saved-entries view to change that widget's font size independently. Sizes range from 8 to 32 pt, are stored in the local SQLite preferences, and are restored on the next launch. Normal mouse-wheel scrolling is unchanged.
+
+**Settings → Font size (pt)** sets the default size for views without an override. The **Reset** button next to this field clears every saved per-view font size and applies the selected default size to all views when you confirm Settings with **OK**. **Cancel** leaves existing preferences unchanged. Switching themes or font families retains individual sizes.
