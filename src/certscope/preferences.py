@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFontComboBox,
-    QFormLayout, QMessageBox, QPushButton, QSpinBox,
+    QFormLayout, QHBoxLayout, QMessageBox, QPushButton, QSpinBox,
 )
 
 FONT_FILE = "JetBrainsMonoNerdFontMono-Regular.ttf"
@@ -154,6 +154,7 @@ class SettingsDialog(QDialog):
         self.db_folder = Path(db_path).expanduser().resolve().parent if db_path else None
         self.setWindowTitle("Settings")
         self.setMinimumWidth(390)
+        self.reset_font_sizes_requested = False
         layout = QFormLayout(self)
 
         self.font = QFontComboBox()
@@ -164,7 +165,15 @@ class SettingsDialog(QDialog):
         self.size = QSpinBox()
         self.size.setRange(8, 32)
         self.size.setValue(size)
-        layout.addRow("Font size (pt)", self.size)
+        size_controls = QHBoxLayout()
+        size_controls.addWidget(self.size)
+        self.reset_font_button = QPushButton("Reset")
+        self.reset_font_button.setToolTip(
+            "Clear all individual font sizes and use this value when saving Settings"
+        )
+        self.reset_font_button.clicked.connect(self.request_font_reset)
+        size_controls.addWidget(self.reset_font_button)
+        layout.addRow("Font size (pt)", size_controls)
 
         self.theme = QComboBox()
         for value, label in (("system", "System (auto)"), ("light", "Light"), ("dark", "Dark")):
@@ -185,6 +194,10 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
+
+    def request_font_reset(self):
+        self.reset_font_sizes_requested = True
+        self.reset_font_button.setEnabled(False)
 
     def open_database_folder(self):
         if self.db_folder and not QDesktopServices.openUrl(

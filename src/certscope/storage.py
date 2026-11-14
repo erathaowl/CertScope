@@ -63,6 +63,10 @@ class Storage:
             db.execute("""INSERT INTO preferences(key, value) VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value""", (key, value))
 
+    def delete_preference(self, key: str):
+        with self.connect() as db:
+            db.execute("DELETE FROM preferences WHERE key = ?", (key,))
+
     def connect(self):
         conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row

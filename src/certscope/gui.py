@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from certscope import __version__
 from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.code_editor import CodeEditor
+from certscope.font_zoom import FontZoomController
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input
 from certscope.remote import fetch_certificate, parse_tls_target
@@ -168,7 +169,23 @@ class EntriesDialog(QDialog):
         layout.addLayout(buttons)
         self.search.textChanged.connect(self.refresh)
         self.table.itemDoubleClicked.connect(lambda _: self.load())
+        self.font_family = getattr(parent, "font_family", register_font())
+        self.font_size = getattr(parent, "font_size", 11)
+        self.font_zoom = FontZoomController(
+            storage, lambda: self.font_size, self.apply_font_appearance, self
+        )
+        self.font_zoom.register("saved_entries_search", self.search)
+        self.font_zoom.register("saved_entries_table", self.table)
+        self.apply_font_appearance()
         self.refresh()
+
+    def apply_font_appearance(self):
+        for key, widget in (
+            ("saved_entries_search", self.search),
+            ("saved_entries_table", self.table),
+        ):
+            widget.setFont(QFont(self.font_family, self.font_zoom.size(key)))
+        self.table.resizeColumnsToContents()
 
     def refresh(self):
         query = self.search.text().casefold()
@@ -251,6 +268,9 @@ class MainWindow(QMainWindow):
             self.font_size = max(8, min(32, int(self.storage.get_preference("font_size", "11"))))
         except ValueError:
             self.font_size = 11
+        self.font_zoom = FontZoomController(
+            self.storage, lambda: self.font_size, self.apply_appearance, self
+        )
         self.theme = self.storage.get_preference("theme", "system")
         if self.theme not in ("system", "light", "dark"):
             self.theme = "system"
@@ -406,6 +426,23 @@ class MainWindow(QMainWindow):
         self.vertical_splitter.setSizes([300, 450])
         layout.addWidget(self.vertical_splitter, 1)
         self.setCentralWidget(root)
+        for key, widget in (
+            ("certificate_pem", self.cert_edit),
+            ("ca_pem", self.ca_edit),
+            ("raw_pem", self.raw),
+            ("certificates_tree", self.tree),
+            ("tls_url", self.url_input),
+            ("hostname", self.hostname),
+        ):
+            self.font_zoom.register(key, widget)
+        for key, viewer in (
+            ("details", self.details),
+            ("verified_path", self.path_details),
+            ("diagnostics", self.diagnostics),
+            ("lint", self.lint_view),
+        ):
+            self.font_zoom.register(f"{key}_tree", viewer.tree)
+            self.font_zoom.register(f"{key}_json", viewer.code)
         self.set_result_mode(self.view_mode.currentText(), save=False)
         self.apply_appearance()
         QApplication.styleHints().colorSchemeChanged.connect(self.on_system_theme_changed)
@@ -431,6 +468,8 @@ class MainWindow(QMainWindow):
             self.font_family = values["font_family"]
             self.font_size = int(values["font_size"])
             self.theme = values["theme"]
+            if dialog.reset_font_sizes_requested:
+                self.font_zoom.reset()
             self.apply_appearance()
 
     def on_system_theme_changed(self, scheme):
@@ -440,11 +479,30 @@ class MainWindow(QMainWindow):
     def apply_appearance(self):
         apply_theme(self.theme)
         dark = is_dark(self.theme)
-        for editor in (self.cert_edit, self.ca_edit, self.raw):
-            editor.configure(self.font_family, self.font_size, dark)
-        for viewer in (self.details, self.path_details, self.diagnostics, self.lint_view):
-            viewer.configure(self.font_family, self.font_size, dark)
-        self.tree.setFont(self.cert_edit.font())
+        for key, editor in (
+            ("certificate_pem", self.cert_edit),
+            ("ca_pem", self.ca_edit),
+            ("raw_pem", self.raw),
+        ):
+            editor.configure(self.font_family, self.font_zoom.size(key), dark)
+        for key, viewer in (
+            ("details", self.details),
+            ("verified_path", self.path_details),
+            ("diagnostics", self.diagnostics),
+            ("lint", self.lint_view),
+        ):
+            viewer.configure(
+                self.font_family, self.font_size, dark,
+                tree_size=self.font_zoom.size(f"{key}_tree"),
+                code_size=self.font_zoom.size(f"{key}_json"),
+            )
+        tree_font = QFont(self.font_family, self.font_zoom.size("certificates_tree"))
+        tree_font.setStyleHint(QFont.StyleHint.Monospace)
+        self.tree.setFont(tree_font)
+        for key, widget in (("tls_url", self.url_input), ("hostname", self.hostname)):
+            font = QFont(widget.font())
+            font.setPointSize(self.font_zoom.size(key))
+            widget.setFont(font)
         self.style_certificate_tree()
         if self.report:
             self.set_trust_indicator(self.report["status"] == "trusted")

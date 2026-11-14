@@ -88,9 +88,12 @@ class JsonViewer(QWidget):
     def set_mode(self, mode: str):
         self.stack.setCurrentIndex(0 if mode == "Tree" else 1)
 
-    def configure(self, family: str, size: int, dark: bool):
-        self.code.configure(family, size, dark)
-        self.tree.setFont(self.code.font())
+    def configure(self, family: str, size: int, dark: bool, *,
+                  tree_size: int | None = None, code_size: int | None = None):
+        self.code.configure(family, code_size if code_size is not None else size, dark)
+        tree_font = QFont(family, tree_size if tree_size is not None else size)
+        tree_font.setStyleHint(QFont.StyleHint.Monospace)
+        self.tree.setFont(tree_font)
         self._dark = dark
         self._style_fields()
 
