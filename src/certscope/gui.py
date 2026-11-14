@@ -17,7 +17,6 @@ from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
 from certscope.code_editor import CodeEditor
 from certscope.json_viewer import JsonViewer
 from certscope.input_source import classify_input
-from certscope.linting import lint_bundle
 from certscope.remote import fetch_certificate, parse_tls_target
 from certscope.preferences import SettingsDialog, apply_theme, is_dark, register_font
 from certscope.parser import leaf_candidates, parse_bundle
@@ -115,6 +114,8 @@ class AnalysisWorker(QThread):
 
     def run(self):
         try:
+            from certscope.linting import lint_bundle
+
             result = verify_bundle(self.pem, self.storage, self.ca, self.purpose,
                                    self.hostname, self.fingerprint)
             result["lint"] = lint_bundle(parse_bundle(self.pem), self.lint_profile)
