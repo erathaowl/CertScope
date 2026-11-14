@@ -32,6 +32,13 @@ def build_executable(entrypoint, name, console, datas, excludes):
         excludes=excludes,
         noarchive=False,
     )
+    # Qt Widgets uses the raster paint engine; Mesa's optional software OpenGL
+    # fallback is not needed by this application and costs ~7 MiB compressed.
+    if not console:
+        analysis.binaries = [
+            item for item in analysis.binaries
+            if not item[0].replace('\\', '/').lower().endswith('/opengl32sw.dll')
+        ]
     archive = PYZ(analysis.pure)
     return EXE(
         archive,
