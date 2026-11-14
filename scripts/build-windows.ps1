@@ -11,6 +11,8 @@ uv run pyinstaller --noconfirm --clean certscope.spec
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & '.\dist\certscope-cli.exe' --help
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+uv run python scripts/smoke-frozen-lint.py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if (!(Test-Path '.\dist\certscope.exe')) { throw 'GUI executable missing' }
 if (!(Test-Path '.\dist\certscope-cli.exe')) { throw 'CLI executable missing' }
 
