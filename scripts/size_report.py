@@ -109,6 +109,20 @@ def main():
                         output.write(archive.read(exe_name))
                 parts = analyze(destination)
                 print(f"ARCHIVE {title} {label}: {parts}")
+                if label == "CLI":
+                    timings = []
+                    for _ in range(3):
+                        started = time.perf_counter()
+                        result = subprocess.run(
+                            [str(destination), "--version"],
+                            capture_output=True, text=True, check=True, timeout=60,
+                        )
+                        if "CertScope" not in result.stdout:
+                            raise ValueError(f"Unexpected CLI response: {result.stdout}")
+                        timings.append((time.perf_counter() - started) * 1000)
+                    median = statistics.median(timings)
+                    print(f"STARTUP {title} CLI median_ms={median:.0f}")
+                    lines.append(f"CLI --version startup ({title}, warm cache): {median:.0f} ms")
                 lines.extend([
                     "",
                     f"### {title} {label} archive entries (compressed)",
