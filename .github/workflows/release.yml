@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -23,34 +25,47 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      should_build: ${{ steps.tag.outputs.should_build }}
     steps:
+      - uses: actions/checkout@v4
       - name: Validate release tag
         id: tag
         env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'v1.4.0' || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name) }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must match vX.Y.Z: $RELEASE_TAG" >&2
             exit 1
           fi
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            version="$(python -c 'import tomllib; from pathlib import Path; print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])')"
+            if [[ "$version" != "${RELEASE_TAG#v}" ]] || gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
 
   build:
     needs: validate
+    if: needs.validate.outputs.should_build == 'true'
     uses: ./.github/workflows/build.yml
     with:
-      source_ref: ${{ needs.validate.outputs.tag }}
+      source_ref: ${{ github.ref == 'refs/heads/main' && '' || needs.validate.outputs.tag }}
     permissions:
       contents: read
 
   publish:
     needs: [validate, build]
+    if: needs.validate.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.validate.outputs.tag }}
+          ref: ${{ github.ref == 'refs/heads/main' && github.sha || needs.validate.outputs.tag }}
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
         with:
@@ -124,13 +139,17 @@ jobs:
           fi
           shopt -s nullglob
           wheels=(dist/certscope-"${TAG#v}"-*.whl)
+          release_options=(--verify-tag)
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            release_options=(--target "$GITHUB_SHA")
+          fi
           gh release create "$TAG" \
             dist/certscope-windows.zip \
             dist/certscope-cli-windows.zip \
             "dist/CertScope-$TAG-source.zip" \
             "${wheels[0]}" \
             --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
+            "${release_options[@]}" \
             --title "CertScope ${TAG#v}" \
             --generate-notes \
             --latest
