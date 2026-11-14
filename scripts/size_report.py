@@ -109,6 +109,14 @@ def main():
                         output.write(archive.read(exe_name))
                 parts = analyze(destination)
                 print(f"ARCHIVE {title} {label}: {parts}")
+                from PyInstaller.archive.readers import CArchiveReader
+
+                archive_toc = CArchiveReader(str(destination)).toc
+                largest = sorted(
+                    ((name, item[1]) for name, item in archive_toc.items()),
+                    key=lambda item: item[1], reverse=True,
+                )[:15]
+                print(f"LARGEST {title} {label}: {largest}")
                 if label == "CLI":
                     timings = []
                     for _ in range(3):

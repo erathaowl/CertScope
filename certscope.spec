@@ -2,18 +2,15 @@
 """Independent PyInstaller onefile builds for Qt GUI and headless CLI."""
 
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all, copy_metadata
+from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 
 common_datas = copy_metadata('certscope')
-common_binaries = []
-common_hiddenimports = []
-for package in ('pkilint', 'pyasn1_fasder', 'iso4217', 'iso3166', 'iso639',
-                'publicsuffixlist'):
-    data, binaries, hiddenimports = collect_all(package)
-    common_datas += data
-    common_binaries += binaries
-    common_hiddenimports += hiddenimports
+for package in ('pkilint', 'iso4217', 'iso3166', 'iso639', 'publicsuffixlist'):
+    common_datas += collect_data_files(package)
+
+# Native DER decoder is imported dynamically by pyasn1-fasder.
+common_hiddenimports = ['pyasn1_fasder._native_helper']
 
 gui_datas = common_datas + [
     (str(Path('assets/certscope.png').resolve()), 'assets'),
@@ -26,7 +23,7 @@ def build_executable(entrypoint, name, console, datas, excludes):
     analysis = Analysis(
         [entrypoint],
         pathex=['src'],
-        binaries=common_binaries,
+        binaries=[],
         datas=datas,
         hiddenimports=common_hiddenimports,
         hookspath=[],
