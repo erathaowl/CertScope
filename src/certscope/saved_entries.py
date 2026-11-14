@@ -142,7 +142,7 @@ class SavedEntriesPanel(QWidget):
             name = QTableWidgetItem(entry.name)
             name.setToolTip(f"{entry.kind.capitalize()}: {entry.name}")
             self.table.setItem(row, 0, name)
-            trust = QTableWidgetItem("Yes" if entry.trusted else "No")
+            trust = QTableWidgetItem("✓" if entry.trusted else "✗")
             trust.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             trust.setForeground(QColor(
                 "#56c38b" if dark else "#16834c"
@@ -182,7 +182,7 @@ class SavedEntriesPanel(QWidget):
         trust = None
         if entry.kind == "ca":
             menu.addSeparator()
-            trust = menu.addAction("Disable trust" if entry.trusted else "Trust CA")
+            trust = menu.addAction("Untrust" if entry.trusted else "Trust")
         selected = menu.exec(self.table.viewport().mapToGlobal(position))
         if selected == rename:
             self.rename_entry(entry)
