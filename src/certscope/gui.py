@@ -379,7 +379,7 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self,
-                                db_path=self.settings.path)
+                                db_path=self.storage.path)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             values = dialog.values()
             for key, value in values.items():

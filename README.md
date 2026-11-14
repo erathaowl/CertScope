@@ -134,3 +134,25 @@ The CI build publishes size comparisons against the unchanged v1.3.0 release.
 Hold **Ctrl** and scroll the mouse wheel over a focused PEM/JSON editor, report tree, certificate tree, URL/hostname field, or saved-entries view to change that widget's font size independently. Sizes range from 8 to 32 pt, are stored in the local SQLite preferences, and are restored on the next launch. Normal mouse-wheel scrolling is unchanged.
 
 **Settings → Font size (pt)** sets the default size for views without an override. The **Reset** button next to this field clears every saved per-view font size and applies the selected default size to all views when you confirm Settings with **OK**. **Cancel** leaves existing preferences unchanged. Switching themes or font families retains individual sizes.
+
+## Application settings and certificate databases
+
+Application preferences are kept in **settings.yaml** in the default CertScope
+data directory, alongside the default **certscope.sqlite3** database. The YAML
+file contains the theme, font preferences (including per-view zoom levels),
+result presentation, lint profile, and the absolute path to the last opened
+certificate database. Preferences are never written to a certificate database.
+Previous preferences in the default SQLite database or legacy settings.json
+are imported automatically when present.
+
+The saved certificate/CA list occupies a full-height sidebar on the left,
+showing **Name** and **Trusted**. Double-click a row to inspect or edit its raw
+PEM; valid changes are saved on closing the editor. Right-click to rename,
+delete, load into either PEM input editor, or change trust for a saved CA.
+Use **New DB** to choose a filename for a new SQLite database and **Open DB**
+to switch to an existing database. Changes to saved entries are written
+immediately. The selected database is restored on the next launch; if its
+file has disappeared, CertScope warns and opens the default database.
+
+Ctrl+wheel zoom remains available for PEM/JSON editors and tree/table views.
+The plain TLS URL, hostname, and search fields use standard font behavior.

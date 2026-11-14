@@ -109,3 +109,26 @@ Il codice del progetto è distribuito con [licenza MIT](LICENSE).
 Tieni premuto **Ctrl** mentre usi la rotellina del mouse su un editor PEM/JSON, su una treeview dei risultati o certificati, su un campo URL/hostname oppure nella finestra delle voci salvate per cambiare la dimensione del carattere della singola vista con focus. Il valore è compreso fra 8 e 32 pt ed è salvato nelle preferenze SQLite locali. Lo scorrimento ordinario rimane invariato.
 
 In **Settings → Font size (pt)** si configura la dimensione predefinita. Il pulsante **Reset**, accanto al valore, elimina tutte le dimensioni personalizzate e applica a tutte le viste il valore selezionato, quando confermi con **OK**. **Cancel** non modifica le preferenze. Tema e famiglia di font restano indipendenti dalle dimensioni personalizzate.
+
+## Impostazioni YAML e database dei certificati
+
+Le preferenze del programma sono salvate nel file **settings.yaml**, nella
+cartella dati predefinita di CertScope, accanto al database predefinito
+**certscope.sqlite3**. Il file YAML contiene tema, font e dimensioni delle
+singole viste, presentazione dei risultati, profilo di linting e percorso
+assoluto dell'ultimo database utilizzato. Il database SQLite contiene i
+certificati e le CA. Le vecchie preferenze del database predefinito e
+quelle eventualmente contenute in settings.json vengono importate.
+
+La barra laterale a sinistra occupa tutta l'altezza della finestra e mostra
+le colonne **Name** e **Trusted**. Un doppio clic apre un editor PEM; le
+modifiche valide vengono salvate alla chiusura. Con il tasto destro è
+possibile rinominare o eliminare l'elemento, caricarlo come certificato o
+come CA, e modificare l'attendibilità delle CA salvate. I pulsanti
+**New DB** e **Open DB** permettono di creare e aprire database SQLite.
+Le modifiche alle voci vengono salvate automaticamente. All'avvio viene
+ripristinato l'ultimo database; se manca, viene segnalato il problema e
+aperto quello predefinito.
+
+Ctrl+rotellina continua a gestire il font dei soli editor PEM/JSON e delle
+viste ad albero/tabella; i normali campi URL e hostname restano invariati.

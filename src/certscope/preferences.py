@@ -147,7 +147,7 @@ def apply_theme(theme: str):
 
 
 class SettingsDialog(QDialog):
-    """Edit font family, point size and theme before saving to SQLite."""
+    """Edit font family, point size and theme before saving to YAML."""
 
     def __init__(self, family: str, size: int, theme: str, parent=None, db_path=None):
         super().__init__(parent)
