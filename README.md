@@ -7,18 +7,46 @@ CertScope is an offline X.509 certificate inspector and verifier. It accepts PEM
 ## Requirements
 
 - Python 3.14 or newer
-- `uv` for dependency management
-- Windows or Linux (Qt for GUI)
+- Windows or Linux; the desktop GUI is optional
+- `uv` for development from source
 
 ## Install and launch
 
+For the CLI and certificate-processing core, without Qt or YAML dependencies:
+
 ```bash
-uv python install 3.14
-uv sync
-uv run certscope
+python -m pip install certscope
+certscope --help
+certscope inspect --cert server.pem
 ```
 
-Opening without arguments starts the GUI. Paste a certificate or concatenated chain in the left editor, optionally paste a custom CA in the right editor, select a validation purpose and click **Analyze and verify**. Choose certificates in the tree to view their attributes or PEM. The result tabs show the validated chain and error diagnostics. Use the **Saved certificates / CAs** sidebar to load, rename, delete or change the trust status of local entries. New CA entries require explicit trust approval.
+For the desktop application in addition to the CLI:
+
+```bash
+python -m pip install "certscope[gui]"
+certscope
+```
+
+These short pip commands require CertScope to be published on PyPI. The current
+GitHub source can already be installed directly with pip:
+
+```bash
+python -m pip install "certscope @ git+https://github.com/erathaowl/CertScope.git"
+python -m pip install "certscope[gui] @ git+https://github.com/erathaowl/CertScope.git"
+```
+
+When developing from a checkout, use:
+
+```bash
+uv python install 3.14
+uv sync --extra gui --group dev
+uv run --extra gui certscope
+```
+
+Opening without arguments starts the GUI when the `gui` extra is installed.
+With a headless installation, running `certscope` without arguments shows
+CLI help. Explicit GUI requests print an installation hint when the extra is
+missing. All CLI commands work with either installation. Paste a certificate or concatenated chain in the left editor, optionally paste a custom CA in the right editor, select a validation purpose and click **Analyze and verify**. Choose certificates in the tree to view their attributes or PEM. The result tabs show the validated chain and error diagnostics. Use the **Saved certificates / CAs** sidebar to load, rename, delete or change the trust status of local entries. New CA entries require explicit trust approval.
 
 ## CLI examples
 
@@ -57,8 +85,8 @@ uv run ruff check .
 Run on Windows (cross-compilation from Linux is not supported):
 
 ```powershell
-uv sync --group dev
-uv run pyinstaller --noconfirm --clean certscope.spec
+uv sync --extra gui --group dev
+uv run --extra gui pyinstaller --noconfirm --clean certscope.spec
 .\dist\certscope-cli.exe --help
 .\dist\certscope-cli.exe verify --cert .\server-chain.pem --format json
 ```
@@ -89,7 +117,7 @@ To launch the GUI with automatic analysis from one parameter:
 .\dist\certscope.exe '-----BEGIN CERTIFICATE-----...'
 ```
 
-The same behavior is available with `uv run certscope <input>` or `uv run certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
+The same behavior is available with `uv run --extra gui certscope <input>` or `uv run --extra gui certscope gui <input>`. PEM strings must be passed as one quoted argument, including actual line breaks. The explicit CLI commands (`inspect`, `verify`, `db`) remain unchanged.
 
 The verification status bar now shows a green/red indicator. Verified path entries from system trust or trusted SQLite CAs use distinct theme-aware colors; database CA names appear before the subject in square brackets. The Settings dialog can open the database directory. Both PEM input editors have **Save as** to write their contents to a file. Structured tree summaries are dimmed and italic; strings, numbers, booleans and null values use the matching JSON syntax-highlighter colors.
 
