@@ -1,5 +1,6 @@
 """Qt desktop interface with independent certificate and trust-anchor inputs."""
 
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -8,12 +9,13 @@ from PySide6.QtGui import QBrush, QColor, QIcon, QFont
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QDialogButtonBox,
+    QPushButton, QSplitter, QTabWidget, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget, QDialogButtonBox,
 )
 
 from certscope import __version__
 from certscope.app_info import APP_LICENSE, APP_NAME, APP_URL
+from certscope.app_settings import AppSettings
 from certscope.code_editor import CodeEditor
 from certscope.font_zoom import FontZoomController
 from certscope.json_viewer import JsonViewer
@@ -22,7 +24,8 @@ from certscope.remote import fetch_certificate, parse_tls_target
 from certscope.preferences import SettingsDialog, apply_theme, is_dark, register_font
 from certscope.parser import leaf_candidates, parse_bundle
 from certscope.reporting import render
-from certscope.storage import Storage
+from certscope.saved_entries import SavedEntriesPanel
+from certscope.storage import Storage, default_database_path
 from certscope.verification import verify_bundle
 
 
@@ -142,136 +145,37 @@ class FetchWorker(QThread):
             self.failed.emit(str(exc))
 
 
-class EntriesDialog(QDialog):
-    def __init__(self, storage: Storage, parent=None):
-        super().__init__(parent)
-        self.storage = storage
-        self.selected = None
-        self.setWindowTitle("Saved entries")
-        self.resize(780, 430)
-        layout = QVBoxLayout(self)
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Filter by name")
-        layout.addWidget(self.search)
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Type", "Name", "Trusted", "Enabled"])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.table)
-        buttons = QHBoxLayout()
-        for label, callback in (("Load", self.load), ("Rename", self.rename),
-                                ("Delete", self.delete), ("Toggle trust", self.toggle_trust)):
-            button = QPushButton(label)
-            button.clicked.connect(callback)
-            buttons.addWidget(button)
-        layout.addLayout(buttons)
-        self.search.textChanged.connect(self.refresh)
-        self.table.itemDoubleClicked.connect(lambda _: self.load())
-        self.font_family = getattr(parent, "font_family", register_font())
-        self.font_size = getattr(parent, "font_size", 11)
-        self.font_zoom = FontZoomController(
-            storage, lambda: self.font_size, self.apply_font_appearance, self
-        )
-        self.font_zoom.register("saved_entries_search", self.search)
-        self.font_zoom.register("saved_entries_table", self.table)
-        self.apply_font_appearance()
-        self.refresh()
-
-    def apply_font_appearance(self):
-        for key, widget in (
-            ("saved_entries_search", self.search),
-            ("saved_entries_table", self.table),
-        ):
-            widget.setFont(QFont(self.font_family, self.font_zoom.size(key)))
-        self.table.resizeColumnsToContents()
-
-    def refresh(self):
-        query = self.search.text().casefold()
-        self.entries = [e for e in self.storage.list() if query in e.name.casefold()]
-        self.table.setRowCount(len(self.entries))
-        dark = is_dark(getattr(self.parent(), "theme", "system"))
-        for row, entry in enumerate(self.entries):
-            self.table.setItem(row, 0, QTableWidgetItem(entry.kind))
-            self.table.setItem(row, 1, QTableWidgetItem(entry.name))
-            trusted = QTableWidgetItem("✓" if entry.trusted else "✗")
-            trusted.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            color = ("#56c38b" if dark else "#16834c") if entry.trusted else (
-                "#ff7070" if dark else "#c92b2b"
-            )
-            trusted.setForeground(QColor(color))
-            trusted.setToolTip("Trusted" if entry.trusted else "Not trusted")
-            self.table.setItem(row, 2, trusted)
-            self.table.setItem(row, 3, QTableWidgetItem(
-                "Yes" if entry.enabled else "No"
-            ))
-        self.table.resizeColumnsToContents()
-
-    def current(self):
-        row = self.table.currentRow()
-        if row < 0 or row >= len(self.entries):
-            QMessageBox.information(self, "Select entry", "Select an entry first")
-            return None
-        return self.entries[row]
-
-    def load(self):
-        if entry := self.current():
-            self.selected = entry
-            self.accept()
-
-    def rename(self):
-        if entry := self.current():
-            name, accepted = QInputDialog.getText(self, "Rename entry", "New name:", text=entry.name)
-            if accepted and name.strip():
-                try:
-                    self.storage.rename(entry.kind, entry.name, name.strip())
-                    self.refresh()
-                except Exception as exc:
-                    QMessageBox.warning(self, "Rename failed", str(exc))
-
-    def delete(self):
-        if entry := self.current():
-            if QMessageBox.question(self, "Delete entry", f"Delete {entry.name} permanently?") == QMessageBox.StandardButton.Yes:
-                try:
-                    self.storage.delete(entry.kind, entry.name)
-                    self.refresh()
-                except Exception as exc:
-                    QMessageBox.warning(self, "Delete failed", str(exc))
-
-    def toggle_trust(self):
-        entry = self.current()
-        if not entry or entry.kind != "ca":
-            QMessageBox.information(self, "CA trust", "Select a CA entry to change its trust")
-            return
-        state = not entry.trusted
-        question = (f"Trust '{entry.name}' as a local CA for certificate validation?"
-                    if state else f"Disable trust for '{entry.name}'?")
-        if QMessageBox.question(self, "Confirm trust change", question) == QMessageBox.StandardButton.Yes:
-            try:
-                self.storage.trust(entry.name, state)
-                self.refresh()
-            except Exception as exc:
-                QMessageBox.warning(self, "Trust update failed", str(exc))
-
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.storage = Storage()
+        self.settings = AppSettings()
+        self.settings.migrate_legacy(default_database_path())
+        self._missing_database = None
+        saved_db = self.settings.get_preference("last_database")
+        if saved_db and not Path(saved_db).is_file():
+            self._missing_database = saved_db
+            saved_db = None
+        try:
+            self.storage = Storage(saved_db) if saved_db else Storage()
+        except (OSError, sqlite3.DatabaseError, RuntimeError) as exc:
+            self._missing_database = f"{saved_db}: {exc}"
+            self.storage = Storage()
+        current_db = str(self.storage.path.resolve())
+        if self.settings.get_preference("last_database") != current_db:
+            self.settings.set_preference("last_database", current_db)
         self.report = None
         self.worker = None
         self.fetch_worker = None
         self.certificate_data = []
-        self.font_family = self.storage.get_preference("font_family", register_font())
+        self.font_family = self.settings.get_preference("font_family", register_font())
         try:
-            self.font_size = max(8, min(32, int(self.storage.get_preference("font_size", "11"))))
+            self.font_size = max(8, min(32, int(self.settings.get_preference("font_size", "11"))))
         except ValueError:
             self.font_size = 11
         self.font_zoom = FontZoomController(
-            self.storage, lambda: self.font_size, self.apply_appearance, self
+            self.settings, lambda: self.font_size, self.apply_appearance, self
         )
-        self.theme = self.storage.get_preference("theme", "system")
+        self.theme = self.settings.get_preference("theme", "system")
         if self.theme not in ("system", "light", "dark"):
             self.theme = "system"
         apply_theme(self.theme)
@@ -279,14 +183,20 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(application_icon())
         self.resize(1280, 840)
         self._create_ui()
+        if self._missing_database:
+            QTimer.singleShot(0, self.notify_missing_database)
+
+    def notify_missing_database(self):
+        QMessageBox.warning(
+            self, "Saved database unavailable",
+            f"The previously selected database is unavailable:\n{self._missing_database}\n\n"
+            f"Using the default database:\n{self.storage.path}",
+        )
 
     def _create_ui(self):
         root = QWidget()
         layout = QVBoxLayout(root)
         toolbar = QHBoxLayout()
-        stored = QPushButton("Saved entries")
-        stored.clicked.connect(self.manage)
-        toolbar.addWidget(stored)
         settings = QPushButton("Settings")
         settings.clicked.connect(self.open_settings)
         toolbar.addWidget(settings)
@@ -349,10 +259,10 @@ class MainWindow(QMainWindow):
         self.lint_profile.setToolTip(
             "CA/B Forum TLS requirements apply to publicly trusted TLS certificates"
         )
-        saved_lint_profile = self.storage.get_preference("lint_profile", "rfc5280")
+        saved_lint_profile = self.settings.get_preference("lint_profile", "rfc5280")
         self.lint_profile.setCurrentIndex(1 if saved_lint_profile == "cabf-tls" else 0)
         self.lint_profile.currentIndexChanged.connect(
-            lambda _: self.storage.set_preference(
+            lambda _: self.settings.set_preference(
                 "lint_profile", self.lint_profile.currentData()
             )
         )
@@ -396,7 +306,7 @@ class MainWindow(QMainWindow):
         mode_row.addWidget(QLabel("Result view"))
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Tree", "JSON"])
-        saved_mode = self.storage.get_preference("result_view", "Tree")
+        saved_mode = self.settings.get_preference("result_view", "Tree")
         self.view_mode.setCurrentText(saved_mode if saved_mode in ("Tree", "JSON") else "Tree")
         self.view_mode.currentTextChanged.connect(self.set_result_mode)
         mode_row.addWidget(self.view_mode)
@@ -425,14 +335,23 @@ class MainWindow(QMainWindow):
         self.vertical_splitter.setStretchFactor(1, 2)
         self.vertical_splitter.setSizes([300, 450])
         layout.addWidget(self.vertical_splitter, 1)
-        self.setCentralWidget(root)
+        self.saved_panel = SavedEntriesPanel(self.storage, self.settings, self)
+        self.saved_panel.new_database_requested.connect(self.new_database)
+        self.saved_panel.open_database_requested.connect(self.open_database)
+        self.saved_panel.load_requested.connect(self.load_saved_entry)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.addWidget(self.saved_panel)
+        self.main_splitter.addWidget(root)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setSizes([275, 1005])
+        self.setCentralWidget(self.main_splitter)
         for key, widget in (
             ("certificate_pem", self.cert_edit),
             ("ca_pem", self.ca_edit),
             ("raw_pem", self.raw),
             ("certificates_tree", self.tree),
-            ("tls_url", self.url_input),
-            ("hostname", self.hostname),
+            ("saved_entries_table", self.saved_panel.table),
         ):
             self.font_zoom.register(key, widget)
         for key, viewer in (
@@ -460,11 +379,11 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         dialog = SettingsDialog(self.font_family, self.font_size, self.theme, self,
-                                db_path=self.storage.path)
+                                db_path=self.settings.path)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             values = dialog.values()
             for key, value in values.items():
-                self.storage.set_preference(key, value)
+                self.settings.set_preference(key, value)
             self.font_family = values["font_family"]
             self.font_size = int(values["font_size"])
             self.theme = values["theme"]
@@ -499,10 +418,11 @@ class MainWindow(QMainWindow):
         tree_font = QFont(self.font_family, self.font_zoom.size("certificates_tree"))
         tree_font.setStyleHint(QFont.StyleHint.Monospace)
         self.tree.setFont(tree_font)
-        for key, widget in (("tls_url", self.url_input), ("hostname", self.hostname)):
-            font = QFont(widget.font())
-            font.setPointSize(self.font_zoom.size(key))
-            widget.setFont(font)
+        self.saved_panel.configure(self.font_family, self.font_size, self.theme)
+        saved_font = QFont(self.font_family, self.font_zoom.size("saved_entries_table"))
+        saved_font.setStyleHint(QFont.StyleHint.Monospace)
+        self.saved_panel.table.setFont(saved_font)
+        self.saved_panel.refresh()
         self.style_certificate_tree()
         if self.report:
             self.set_trust_indicator(self.report["status"] == "trusted")
@@ -546,7 +466,7 @@ class MainWindow(QMainWindow):
         for viewer in (self.details, self.path_details, self.diagnostics, self.lint_view):
             viewer.set_mode(mode)
         if save:
-            self.storage.set_preference("result_view", mode)
+            self.settings.set_preference("result_view", mode)
 
     def load_input(self, value: str):
         """Populate and analyze a startup PEM string, certificate file or URL."""
@@ -627,18 +547,70 @@ class MainWindow(QMainWindow):
                                            ) == QMessageBox.StandardButton.Yes
         try:
             self.storage.save(kind, name.strip(), editor.toPlainText(), trusted=trusted)
+            self.saved_panel.refresh()
             self.status.setText(f"Saved {kind}: {name.strip()}")
         except Exception as exc:
             QMessageBox.warning(self, "Save failed", str(exc))
 
-    def manage(self):
-        dialog = EntriesDialog(self.storage, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected:
-            entry = dialog.selected
-            if entry.kind == "ca":
-                self.ca_edit.setPlainText(entry.pem_bundle)
-            else:
-                self.cert_edit.setPlainText(entry.pem_bundle)
+    def load_saved_entry(self, kind: str, pem: str):
+        editor = self.ca_edit if kind == "ca" else self.cert_edit
+        editor.setPlainText(pem)
+        self.status.setText(f"Loaded saved entry into {kind} editor")
+
+    def database_busy(self) -> bool:
+        for worker in (self.worker, self.fetch_worker):
+            if worker is not None and worker.isRunning():
+                QMessageBox.information(
+                    self, "Database in use",
+                    "Finish the current certificate analysis before switching databases.",
+                )
+                return True
+        return False
+
+    def switch_database(self, path: str | Path) -> bool:
+        if self.database_busy():
+            return False
+        try:
+            storage = Storage(path)
+        except (OSError, sqlite3.DatabaseError, RuntimeError) as exc:
+            QMessageBox.warning(self, "Cannot open database", str(exc))
+            return False
+        self.storage = storage
+        self.settings.set_preference("last_database", str(storage.path.resolve()))
+        self.saved_panel.set_database(storage)
+        self.report = None
+        self.tree.clear()
+        self.set_trust_indicator(None)
+        self.status.setText(f"Using certificate database: {storage.path}")
+        return True
+
+    def new_database(self):
+        if self.database_busy():
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Create certificate database", str(default_database_path().parent),
+            "SQLite databases (*.sqlite3 *.db);;All files (*)",
+        )
+        if not path:
+            return
+        destination = Path(path)
+        if destination.exists():
+            QMessageBox.warning(
+                self, "Database already exists",
+                "Choose a new filename or use Open DB for an existing database.",
+            )
+            return
+        self.switch_database(destination)
+
+    def open_database(self):
+        if self.database_busy():
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open certificate database", str(self.storage.path.parent),
+            "SQLite databases (*.sqlite3 *.sqlite *.db);;All files (*)",
+        )
+        if path:
+            self.switch_database(path)
 
     def analyze(self):
         self.set_trust_indicator(None)
