@@ -52,6 +52,16 @@ jobs:
         shell: pwsh
         env:
           CERTSCOPE_VERSION: ${{ inputs.source_ref }}
+      - name: Report executable and ZIP sizes against v1.3.0
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -Path baseline -ItemType Directory -Force | Out-Null
+          gh release download v1.3.0 --repo $env:GITHUB_REPOSITORY --dir baseline --pattern "certscope-windows.zip" --pattern "certscope-cli-windows.zip"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run python scripts/size_report.py --baseline-dir baseline --current-dir dist --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: CertScope-Windows

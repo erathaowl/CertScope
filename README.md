@@ -118,3 +118,12 @@ uv run certscope verify --cert chain.pem --ca root.pem --lint-profile cabf-tls -
 ```
 
 The JSON report contains a separate `lint` object with the profile, status, per-certificate SHA-256 fingerprints, findings (severity, code, validator, ASN.1 path and message), and severity counts. Text output prints the summary and actionable findings. Lint failures do not change verification exit codes or certificate trust status. CertScope passes original DER bytes when available, preserving ASN.1 encoding details; it does not contact network services.
+
+## Independent Windows executables
+
+The Windows GUI and CLI are built from separate PyInstaller analyses and entry points.
+`certscope.exe` retains the original PySide6 Qt Widgets interface and accepts an
+optional certificate file, PEM string or TLS URL. `certscope-cli.exe` includes
+only the headless inspection, verification, PKILint and database modules, without Qt.
+Both binaries remain single-file EXEs with the existing Windows icon and version metadata.
+The CI build publishes size comparisons against the unchanged v1.3.0 release.

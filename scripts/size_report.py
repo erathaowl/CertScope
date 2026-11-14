@@ -62,6 +62,23 @@ def main():
 
     old = metrics(args.baseline_dir)
     new = metrics(args.current_dir) if args.current_dir else None
+    if args.current_dir:
+        from PyInstaller.archive.readers import CArchiveReader
+
+        with TemporaryDirectory() as temp:
+            archive_name, exe_name = ARCHIVES["CLI"]
+            with ZipFile(args.current_dir / archive_name) as archive:
+                extracted = Path(temp) / exe_name
+                extracted.write_bytes(archive.read(exe_name))
+            bundled_names = CArchiveReader(str(extracted)).toc
+            graphics = [
+                name for name in bundled_names
+                if name.lower().replace("\\", "/").startswith((
+                    "pyside6/", "shiboken6/", "qt6"
+                ))
+            ]
+            if graphics:
+                raise ValueError(f"The CLI unexpectedly contains Qt: {graphics[:10]}")
     lines = [
         "## Windows executable sizes (MiB)",
         "",
