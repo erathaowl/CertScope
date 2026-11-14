@@ -12,6 +12,10 @@ from certscope.parser import InputError, bundle_digest, normalize_bundle, parse_
 SCHEMA_VERSION = 2
 
 
+def default_database_path() -> Path:
+    return user_data_path("CertScope", "CertScope") / "certscope.sqlite3"
+
+
 @dataclass(frozen=True)
 class Entry:
     id: int
@@ -27,7 +31,7 @@ class Entry:
 
 class Storage:
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else user_data_path("CertScope", "CertScope") / "certscope.sqlite3"
+        self.path = Path(path) if path is not None else default_database_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
@@ -50,22 +54,7 @@ class Storage:
                     );
                     PRAGMA user_version = 1;
                 """)
-            db.execute("CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             db.execute("PRAGMA user_version = 2")
-
-    def get_preference(self, key: str, default: str = "") -> str:
-        with self.connect() as db:
-            row = db.execute("SELECT value FROM preferences WHERE key = ?", (key,)).fetchone()
-        return row["value"] if row else default
-
-    def set_preference(self, key: str, value: str):
-        with self.connect() as db:
-            db.execute("""INSERT INTO preferences(key, value) VALUES (?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value""", (key, value))
-
-    def delete_preference(self, key: str):
-        with self.connect() as db:
-            db.execute("DELETE FROM preferences WHERE key = ?", (key,))
 
     def connect(self):
         conn = sqlite3.connect(self.path, timeout=10)
