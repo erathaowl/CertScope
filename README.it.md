@@ -106,7 +106,7 @@ Il codice del progetto è distribuito con [licenza MIT](LICENSE).
 
 ## Dimensioni carattere per singola vista
 
-Tieni premuto **Ctrl** mentre usi la rotellina del mouse su un editor PEM/JSON, su una treeview dei risultati o certificati, su un campo URL/hostname oppure nella finestra delle voci salvate per cambiare la dimensione del carattere della singola vista con focus. Il valore è compreso fra 8 e 32 pt ed è salvato nelle preferenze SQLite locali. Lo scorrimento ordinario rimane invariato.
+Tieni premuto **Ctrl** mentre usi la rotellina del mouse su un editor PEM/JSON, una treeview dei risultati o dei certificati, oppure sulla tabella delle voci salvate, per cambiare la dimensione del carattere della singola vista con focus. Il valore è compreso fra 8 e 32 pt ed è salvato in settings.yaml. Lo scorrimento ordinario rimane invariato.
 
 In **Settings → Font size (pt)** si configura la dimensione predefinita. Il pulsante **Reset**, accanto al valore, elimina tutte le dimensioni personalizzate e applica a tutte le viste il valore selezionato, quando confermi con **OK**. **Cancel** non modifica le preferenze. Tema e famiglia di font restano indipendenti dalle dimensioni personalizzate.
 
