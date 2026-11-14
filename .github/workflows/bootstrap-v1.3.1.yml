@@ -1,0 +1,34 @@
+name: Bootstrap v1.3.1 release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bootstrap-v1.3.1.yml
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create immutable version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: bd3730ffddb98169c0d077779aabcf44e9e62d3c
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.3.1" >/dev/null 2>&1; then
+            echo "Tag already exists; refusing to move it" >&2
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/v1.3.1" -f sha="$TARGET_SHA" --silent
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.3.1" --jq '.object.sha')" = "$TARGET_SHA"
+      - name: Start standard release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main --field tag=v1.3.1
