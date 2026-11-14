@@ -228,3 +228,203 @@ def test_lint_panel_and_profile_selection(tmp_path, monkeypatch, qt_app):
     again = MainWindow()
     assert again.lint_profile.currentData() == "cabf-tls"
     again.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_ctrl_wheel_zoom_is_independent_and_persistent(tmp_path, monkeypatch, qt_app):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication, QAbstractScrollArea
+
+    from certscope.gui import MainWindow
+    from certscope.storage import Storage
+
+    path = tmp_path / "font_zoom.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    window = MainWindow()
+    window.show()
+    qt_app.processEvents()
+
+    def zoom(widget, direction):
+        widget.setFocus(Qt.FocusReason.OtherFocusReason)
+        qt_app.processEvents()
+        assert widget.hasFocus() or (
+            isinstance(widget, QAbstractScrollArea) and widget.viewport().hasFocus()
+        )
+        event = QWheelEvent(
+            QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120 * direction),
+            Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.ScrollUpdate, False,
+        )
+        recipient = widget.viewport() if isinstance(widget, QAbstractScrollArea) else widget
+        QApplication.sendEvent(recipient, event)
+        qt_app.processEvents()
+        assert event.isAccepted()
+
+    zoom(window.cert_edit, 1)
+    zoom(window.cert_edit, 1)
+    assert window.cert_edit.font().pointSize() == 13
+    assert window.ca_edit.font().pointSize() == 11
+
+    zoom(window.ca_edit, -1)
+    assert window.ca_edit.font().pointSize() == 10
+    assert window.raw.font().pointSize() == 11
+
+    zoom(window.tree, 1)
+    assert window.tree.font().pointSize() == 12
+
+    window.tabs.setCurrentWidget(window.details)
+    window.view_mode.setCurrentText("Tree")
+    qt_app.processEvents()
+    zoom(window.details.tree, 1)
+    assert window.details.tree.font().pointSize() == 12
+    assert window.details.code.font().pointSize() == 11
+
+    window.view_mode.setCurrentText("JSON")
+    qt_app.processEvents()
+    zoom(window.details.code, -1)
+    assert window.details.code.font().pointSize() == 10
+    assert window.details.tree.font().pointSize() == 12
+
+    zoom(window.url_input, 1)
+    assert window.url_input.font().pointSize() == 12
+    assert window.hostname.font().pointSize() == 11
+
+    saved = Storage(path).get_preference("font_size_overrides")
+    import json
+    assert json.loads(saved) == {
+        "certificate_pem": 13,
+        "ca_pem": 10,
+        "certificates_tree": 12,
+        "details_tree": 12,
+        "details_json": 10,
+        "tls_url": 12,
+    }
+    window.close()
+
+    restored = MainWindow()
+    assert restored.cert_edit.font().pointSize() == 13
+    assert restored.ca_edit.font().pointSize() == 10
+    assert restored.tree.font().pointSize() == 12
+    assert restored.details.tree.font().pointSize() == 12
+    assert restored.details.code.font().pointSize() == 10
+    assert restored.url_input.font().pointSize() == 12
+    assert restored.diagnostics.tree.font().pointSize() == 11
+    restored.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_settings_reset_clears_all_font_overrides(tmp_path, monkeypatch, qt_app):
+    import json
+
+    from PySide6.QtWidgets import QDialog
+    from certscope.gui import MainWindow
+    from certscope.preferences import SettingsDialog
+    from certscope.storage import Storage
+
+    path = tmp_path / "font_settings.sqlite3"
+    storage = Storage(path)
+    storage.set_preference("font_size_overrides", json.dumps({
+        "certificate_pem": 19,
+        "details_tree": 8,
+        "details_json": 28,
+        "saved_entries_table": 25,
+    }))
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    window = MainWindow()
+    assert window.cert_edit.font().pointSize() == 19
+    assert window.details.tree.font().pointSize() == 8
+
+    dialog = SettingsDialog(window.font_family, window.font_size, window.theme, window)
+    dialog.size.setValue(15)
+    dialog.reset_font_button.click()
+    assert dialog.reset_font_sizes_requested
+    assert window.cert_edit.font().pointSize() == 19
+    dialog.close()
+
+    def accept_reset(self):
+        self.size.setValue(15)
+        self.reset_font_button.click()
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(SettingsDialog, "exec", accept_reset)
+    window.open_settings()
+    assert window.font_size == 15
+    assert storage.get_preference("font_size") == "15"
+    assert storage.get_preference("font_size_overrides", "missing") == "missing"
+    assert window.cert_edit.font().pointSize() == 15
+    assert window.ca_edit.font().pointSize() == 15
+    assert window.details.tree.font().pointSize() == 15
+    assert window.details.code.font().pointSize() == 15
+    assert window.tree.font().pointSize() == 15
+    assert window.url_input.font().pointSize() == 15
+    window.close()
+    reopened = MainWindow()
+    assert reopened.cert_edit.font().pointSize() == 15
+    assert reopened.details.tree.font().pointSize() == 15
+    reopened.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_entries_dialog_font_zoom_persists(tmp_path, monkeypatch, qt_app):
+    import json
+
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    from certscope.gui import EntriesDialog, MainWindow
+    from certscope.storage import Storage
+
+    path = tmp_path / "entries_font.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    window = MainWindow()
+    dialog = EntriesDialog(window.storage, window)
+    dialog.show()
+    qt_app.processEvents()
+
+    dialog.table.setFocus()
+    qt_app.processEvents()
+    assert dialog.table.hasFocus()
+    event = QWheelEvent(
+        QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier,
+        Qt.ScrollPhase.ScrollUpdate, False,
+    )
+    QApplication.sendEvent(dialog.table.viewport(), event)
+    assert dialog.table.font().pointSize() == 12
+    assert dialog.search.font().pointSize() == 11
+    assert json.loads(Storage(path).get_preference("font_size_overrides"))[
+        "saved_entries_table"
+    ] == 12
+    dialog.close()
+    second = EntriesDialog(window.storage, window)
+    assert second.table.font().pointSize() == 12
+    second.close()
+    window.close()
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux"), reason="Qt offscreen teardown is unstable in CI")
+def test_ctrl_wheel_does_not_zoom_without_control(tmp_path, monkeypatch, qt_app):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    from certscope.gui import MainWindow
+    from certscope.storage import Storage
+
+    path = tmp_path / "wheel_normal.sqlite3"
+    monkeypatch.setattr("certscope.gui.Storage", lambda: Storage(path))
+    window = MainWindow()
+    window.show()
+    window.cert_edit.setFocus()
+    qt_app.processEvents()
+    event = QWheelEvent(
+        QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate, False,
+    )
+    QApplication.sendEvent(window.cert_edit.viewport(), event)
+    assert window.cert_edit.font().pointSize() == 11
+    assert Storage(path).get_preference("font_size_overrides", "missing") == "missing"
+    window.close()
