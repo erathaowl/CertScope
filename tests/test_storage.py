@@ -37,11 +37,16 @@ def test_duplicate_name_is_not_replaced_silently(tmp_path, chain):
         storage.save("ca", "Root", chain["root"])
 
 
-def test_preferences_persist(tmp_path):
-    path = tmp_path / "settings.sqlite3"
-    storage = Storage(path)
-    assert storage.get_preference("theme", "system") == "system"
-    storage.set_preference("theme", "dark")
-    storage.set_preference("font_size", "14")
-    assert Storage(path).get_preference("theme") == "dark"
-    assert Storage(path).get_preference("font_size") == "14"
+def test_database_contains_only_certificates(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "certificates.sqlite3"
+    Storage(path)
+    with sqlite3.connect(path) as db:
+        tables = {
+            name for (name,) in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+    assert "entries" in tables
+    assert "preferences" not in tables
