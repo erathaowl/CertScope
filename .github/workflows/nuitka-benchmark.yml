@@ -1,0 +1,89 @@
+name: Temporary Nuitka onefile benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nuitka-benchmark.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [cli, gui]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --group dev
+      - name: Compile experimental Nuitka onefile executable
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $common = @(
+            '--mode=onefile',
+            '--assume-yes-for-downloads',
+            '--output-dir=nuitka-output',
+            '--windows-icon-from-ico=assets/certscope.ico',
+            '--include-package-data=pkilint',
+            '--include-package-data=iso4217',
+            '--include-package-data=iso639',
+            '--include-package-data=iso3166',
+            '--include-package-data=publicsuffixlist'
+          )
+          if ($env:TARGET -eq 'cli') {
+            $extra = @('--output-filename=certscope-cli-nuitka.exe', 'cli_launcher.py')
+          } else {
+            $extra = @(
+              '--output-filename=certscope-nuitka.exe',
+              '--windows-console-mode=disable',
+              '--enable-plugin=pyside6',
+              '--include-data-dir=src/certscope/assets=certscope/assets',
+              '--include-data-file=assets/certscope.png=assets/certscope.png',
+              'gui_launcher.py'
+            )
+          }
+          uv run --with "Nuitka[onefile]>=4.2,<5" python -m nuitka @common @extra
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Measure onefile output and verify runtime
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          if ($env:TARGET -eq 'cli') {
+            $exe = 'nuitka-output/certscope-cli-nuitka.exe'
+            New-Item -Path dist -ItemType Directory -Force | Out-Null
+            Copy-Item $exe dist/certscope-cli.exe
+            uv run python scripts/smoke-frozen-lint.py
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $measurements = @()
+            for ($n=0; $n -lt 3; $n++) {
+              $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+              & $exe --version | Out-Null
+              $stopwatch.Stop()
+              $measurements += [int]$stopwatch.ElapsedMilliseconds
+            }
+            Write-Host "NUITKA CLI warm startup ms: $($measurements -join ', ')"
+          } else {
+            $exe = 'nuitka-output/certscope-nuitka.exe'
+            $env:QT_QPA_PLATFORM = 'offscreen'
+            $process = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+            try {
+              Start-Sleep -Seconds 10
+              $process.Refresh()
+              if ($process.HasExited) { throw "Nuitka GUI crashed: $($process.ExitCode)" }
+            } finally {
+              if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
+            }
+          }
+          $bytes = (Get-Item $exe).Length
+          Write-Host "NUITKA $env:TARGET EXE bytes=$bytes"
+          Write-Host "NUITKA $env:TARGET EXE MiB=$([math]::Round($bytes/1MB,2))"
